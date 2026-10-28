@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "个人数字工作室",
+  "version": "1.0.0",
+  "description": "把个人数字工作室设为浏览器新标签页：项目、天气、音乐与动态一屏可见。",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://yuban211.duckdns.org/*"
+  ],
+  "offline_enabled": true
+}

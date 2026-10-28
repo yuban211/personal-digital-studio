@@ -1,0 +1,365 @@
+/* ═══════════════════════════════════════════════════════════════
+   内容区布局 —— 移植自参考站 bloghome.vue 的 two-columns
+   ─────────────────────────────────────────────────────────────────
+   照搬他的核心设计：
+     - --ui-scale: 0.90 全局缩放体系
+     - 左列固定 360*scale，右列弹性
+     - 卡片间距 22*scale，块间距 18*scale
+     - 最大宽 1440*scale 居中
+   ═══════════════════════════════════════════════════════════════ */
+
+.content-shell {
+  background-color: var(--paper);
+  position: relative;
+  z-index: 2;
+  /* 从 Hero 的波浪处平滑接上 */
+  margin-top: -2px;
+}
+
+.content-inner {
+  display: flex;
+  flex-direction: column;
+  padding: 64px 4% 20px;
+  padding-top: calc(64px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── 双列（照搬他的 css 变量体系）── */
+.two-columns {
+  --ui-scale: 0.90;
+
+  --max-w: calc(1440px * var(--ui-scale));
+  --left-w: calc(360px * var(--ui-scale));
+  --col-gap: calc(32px * var(--ui-scale));
+  --block-gap: calc(18px * var(--ui-scale));
+  --card-gap: calc(22px * var(--ui-scale));
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--col-gap);
+  max-width: var(--max-w);
+  width: 100%;
+  margin: 0 auto;
+}
+
+.left-column {
+  width: var(--left-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  position: sticky;
+  top: 24px;
+}
+
+.right-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--block-gap);
+}
+
+/* ── 卡片通用 ── */
+.card {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  /* 参考站没用阴影，但纯白卡片在米白底上会"浮"，加极淡阴影压住 */
+  box-shadow: 0 1px 2px rgba(44, 44, 44, 0.03);
+  transition:
+    border-color var(--dur-state) var(--ease-out-quart),
+    box-shadow var(--dur-state) var(--ease-out-quart),
+    transform var(--dur-state) var(--ease-out-quart);
+}
+
+/* 悬停轻微上浮（参考站没有，但这是他项目卡片的手法） */
+.card:hover {
+  border-color: rgba(44, 44, 44, 0.2);
+  box-shadow: 0 4px 16px rgba(44, 44, 44, 0.06);
+}
+
+.card-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 400 9px/1 var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 12px;
+}
+.card-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.card-label b {
+  color: var(--ink-soft);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+/* ── 天气卡嵌入 ── */
+.wcard-block { padding: 16px 16px 12px; }
+.wcard-block .wx-card { min-height: 150px; }
+.wcard-block .wx-swatches { padding: 10px 0 0; justify-content: flex-start; }
+.wcard-block .wx-swatch { width: 18px; height: 18px; }
+.wcard-block .wx-overlay { min-height: 150px; padding: 12px 14px 10px; }
+.wcard-block .wx-place,
+.wcard-block .wx-temp,
+.wcard-block .wx-desc,
+.wcard-block .wx-meta {
+  color: rgba(24, 30, 24, 0.92);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+.wcard-block .wx-card[data-dark='1'] .wx-place,
+.wcard-block .wx-card[data-dark='1'] .wx-temp,
+.wcard-block .wx-card[data-dark='1'] .wx-desc,
+.wcard-block .wx-card[data-dark='1'] .wx-meta {
+  color: rgba(240, 246, 238, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ── 播放器块 ── */
+.player-block { padding: 16px; }
+.player-block .player { padding: 0; border: 0; background: none; border-radius: 0; }
+.player-block .player-disc {
+  background:
+    radial-gradient(circle at 50% 50%, var(--paper) 0 22%, transparent 23%),
+    repeating-radial-gradient(circle at 50% 50%, #2b2b2b 0 2px, #1e1e1e 2px 4px);
+}
+.player-block .player-song { color: var(--ink); }
+.player-block .player-artist { color: var(--ink-dim); }
+.player-block .player-bar { background: rgba(44, 44, 44, 0.12); }
+.player-block .player-bar i { background: var(--ink-soft); }
+.player-block .player-time { color: var(--ink-dim); }
+.player-block .player-btn {
+  border-color: var(--line);
+  color: var(--ink);
+}
+.player-block .player-btn:hover { background: rgba(44, 44, 44, 0.05); }
+.player-block .player-btn--main {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.player-block .player-btn--main:hover { background: #3a3a3a; }
+.player-block .player-list { border-top-color: var(--line); }
+.player-block .player-item { color: var(--ink-soft); }
+.player-block .player-item:hover { background: rgba(44, 44, 44, 0.04); }
+.player-block .player-item.is-active { color: var(--ink); }
+.player-block .player-item.is-active::before { background: var(--ink-soft); }
+
+/* ── 轮播块 ── */
+.gallery-block { padding: 16px; }
+.gallery-block .slider {
+  aspect-ratio: 16 / 10;
+  border-radius: 6px;
+  background: #e8e7dd;
+}
+.gallery-block .slider-nav {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+}
+.gallery-block .slider-dot { background: rgba(255, 255, 255, 0.5); }
+.gallery-block .slider-dot.is-active { background: #fff; }
+
+/* ── 项目列表 ── */
+.proj-list { display: flex; flex-direction: column; gap: 2px; }
+
+.proj-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--ink);
+  border-left: 2px solid transparent;
+  transition:
+    background-color var(--dur-micro) ease,
+    border-color var(--dur-micro) ease,
+    padding-left var(--dur-micro) var(--ease-out-quart);
+}
+.proj-row:hover,
+.proj-row:focus-visible {
+  background: rgba(44, 44, 44, 0.035);
+  border-left-color: var(--accent-yellow);
+  padding-left: 14px;
+}
+
+.proj-idx {
+  font: 400 10px/1 var(--font-mono);
+  color: var(--ink-dim);
+  flex: none;
+  width: 18px;
+}
+
+.proj-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.proj-title {
+  font: 500 14px/1.3 var(--font-title);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+.proj-summary {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proj-status {
+  flex: none;
+  font: 400 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.proj-row:hover .proj-status {
+  border-color: var(--accent-yellow);
+  color: var(--ink-soft);
+}
+
+.proj-arrow {
+  flex: none;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity var(--dur-micro) ease,
+    transform var(--dur-micro) var(--ease-out-quart);
+  color: var(--ink-soft);
+}
+.proj-row:hover .proj-arrow,
+.proj-row:focus-visible .proj-arrow {
+  opacity: 1;
+  transform: none;
+}
+
+/* ── 日志列表 ── */
+.note-list { display: flex; flex-direction: column; }
+
+.note-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 4px;
+  text-decoration: none;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  transition: background-color var(--dur-micro) ease;
+}
+.note-row:last-child { border-bottom: 0; }
+.note-row:hover,
+.note-row:focus-visible { background: rgba(44, 44, 44, 0.03); }
+
+.note-date {
+  font: 400 10px/1 var(--font-mono);
+  color: var(--ink-dim);
+  flex: none;
+}
+.note-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-arrow {
+  flex: none;
+  opacity: 0;
+  color: var(--ink-dim);
+  transition: opacity var(--dur-micro) ease;
+}
+.note-row:hover .note-arrow { opacity: 1; }
+
+.empty-note {
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink-dim);
+  padding: 10px 4px;
+}
+.empty-note small {
+  font: 400 9px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+}
+
+/* ── 页脚 ── */
+.site-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: calc(1440px * 0.9);
+  width: 100%;
+  margin: 48px auto 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font: 400 10px/1.6 var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+.foot-sep { opacity: 0.5; }
+.foot-right {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+}
+.foot-right a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  transition: color var(--dur-micro) ease;
+}
+.foot-right a:hover,
+.foot-right a:focus-visible { color: var(--ink); }
+
+/* ── 顶栏：滚动后加实底 ── */
+.site-header.is-scrolled {
+  background: rgba(250, 247, 242, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom-color: var(--line);
+}
+
+/* ══ 响应式 ══ */
+@media (max-width: 1023px) {
+  .two-columns {
+    --ui-scale: 0.88;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .left-column {
+    width: 100%;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .left-column > .card {
+    flex: 1 1 260px;
+    min-width: 0;
+  }
+  .content-inner { padding: 44px 4% 20px; }
+}
+
+@media (max-width: 640px) {
+  .content-inner { padding: 32px 4% 16px; }
+  .left-column { flex-direction: column; }
+  .card { padding: 13px; border-radius: 8px; }
+  .site-foot { margin-top: 32px; }
+  .foot-right { margin-left: 0; width: 100%; }
+}

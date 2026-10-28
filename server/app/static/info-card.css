@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════════════
+   信息卡 + 社交图标 —— 从参考站 information.vue 原样搬迁
+   ─────────────────────────────────────────────────────────────────
+   照搬的真实数值：
+     - 卡片：圆角 16px，渐变 rgba(200,240,220,.65) → rgba(200,220,255,.6) → rgba(255,210,200,.55)
+     - backdrop-filter: blur(16px)（毛玻璃）
+     - 阴影 0 4px 16px rgba(0,0,0,.08)
+     - 头像骨架屏 + 淡入 0.4s
+     - 分割线 40×2px 渐变 #6366f1 → #8b5cf6
+     - 社交图标 50×50 圆形白底，弹性缓动 cubic-bezier(.68,-.55,.265,1.55)
+   ═══════════════════════════════════════════════════════════════ */
+
+.info-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 16px;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    rgba(200, 240, 220, 0.65),
+    rgba(200, 220, 255, 0.6),
+    rgba(255, 210, 200, 0.55)
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  width: 100%;
+}
+
+/* ── 头像 ── */
+.avatar-wrapper {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.skeleton-avatar {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(90deg, #e0e0e0 25%, #f5f5f5 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: infoShimmer 1.5s infinite;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.skeleton-hidden {
+  opacity: 0;
+}
+
+@keyframes infoShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.avatar-visible {
+  opacity: 1;
+}
+
+/* ── 昵称 / 分割线 / 签名 ── */
+.info-name {
+  font-size: 18px;
+  font-weight: normal;
+  color: #1a1a1a;
+  font-family: var(--font-title);
+  line-height: 1.4;
+}
+
+.info-divider {
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 1px;
+  margin: 4px 0;
+}
+
+.info-bio {
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
+  font-family: var(--font-title);
+  line-height: 1.5;
+}
+
+/* ── 社交图标 ── */
+.social-wrap {
+  display: inline-flex;
+  list-style: none;
+  height: auto;
+  width: 100%;
+  justify-content: center;
+  margin-top: 2px;
+  padding: 0;
+}
+
+.social-icon {
+  position: relative;
+  background: #fff;
+  border-radius: 50%;
+  margin: 10px;
+  width: 50px;
+  height: 50px;
+  font-size: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  color: #1a1a1a;
+  text-decoration: none;
+}
+
+.social-icon .tooltip {
+  position: absolute;
+  top: 0;
+  font-size: 14px;
+  background: #fff;
+  color: #fff;
+  padding: 5px 8px;
+  border-radius: 5px;
+  box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  white-space: nowrap;
+}
+
+.social-icon:hover .tooltip {
+  top: -45px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.social-icon svg {
+  width: 1.4em;
+  height: 1.4em;
+}
+
+/* 各平台悬停色（照搬他的配色） */
+.social-icon.github:hover,
+.social-icon.github:hover .tooltip,
+.social-icon.github:hover .tooltip::before {
+  background: #333;
+  color: #fff;
+}
+.social-icon.steam:hover,
+.social-icon.steam:hover .tooltip,
+.social-icon.steam:hover .tooltip::before {
+  background: #1b2838;
+  color: #fff;
+}
+.social-icon.bilibili:hover,
+.social-icon.bilibili:hover .tooltip,
+.social-icon.bilibili:hover .tooltip::before {
+  background: #fb7299;
+  color: #fff;
+}
+.social-icon.mail:hover,
+.social-icon.mail:hover .tooltip,
+.social-icon.mail:hover .tooltip::before {
+  background: #6366f1;
+  color: #fff;
+}
+
+/* 减少动效 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-avatar { animation: none; }
+  .social-icon { transition: none; }
+}
+
+/* 移动端缩小 */
+@media (max-width: 640px) {
+  .avatar-wrapper { width: 64px; height: 64px; }
+  .social-icon {
+    width: 42px;
+    height: 42px;
+    margin: 7px;
+  }
+  .info-name { font-size: 16px; }
+  .info-bio { font-size: 13px; }
+}

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>个人数字工作室</title>
+  <link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+  <!-- 背景层：渐变 + 网格 -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="dot" id="statusDot" aria-hidden="true"></span>
+      <span class="brand">个人数字工作室</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="tag" id="statusText">连接中</span>
+    </div>
+    <div class="topbar-right">
+      <span class="clock" id="clock">--:--:--</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="tag">UTC+8</span>
+    </div>
+  </header>
+
+  <!-- 主区 -->
+  <main class="stage">
+
+    <!-- 左：天气 + 音乐 -->
+    <aside class="col col-left">
+
+      <!-- 天气 -->
+      <section class="panel weather" id="weatherPanel" aria-label="天气">
+        <div class="panel-label"><span>WEATHER</span><b id="weatherCity">--</b></div>
+        <div class="wx-card" id="wxCard" data-weather-scene="cloud">
+          <canvas class="wx-canvas" id="wxCanvas" aria-hidden="true"></canvas>
+          <div class="wx-overlay">
+            <div class="wx-top">
+              <span class="wx-place" id="wxPlace">--</span>
+              <span class="wx-demo" id="wxDemo" hidden>演示</span>
+            </div>
+            <div>
+              <div class="wx-temp" id="wxTemp">--<span>°C</span></div>
+              <div class="wx-desc" id="wxDesc">等待数据</div>
+            </div>
+            <div class="wx-bottom">
+              <div class="wx-meta" id="wxMeta"></div>
+            </div>
+          </div>
+        </div>
+        <div class="wx-swatches" role="group" aria-label="天气预览">
+          <button class="wx-swatch" type="button" data-wx="sun" aria-label="晴" style="color:#f0c674"></button>
+          <button class="wx-swatch" type="button" data-wx="cloud" aria-label="多云" style="color:#c8ccc8"></button>
+          <button class="wx-swatch" type="button" data-wx="rain" aria-label="雨" style="color:#7aa8d8"></button>
+          <button class="wx-swatch" type="button" data-wx="thunder" aria-label="雷暴" style="color:#5c6670"></button>
+          <button class="wx-swatch" type="button" data-wx="snow" aria-label="雪" style="color:#e8f0f4"></button>
+          <button class="wx-swatch" type="button" data-wx="wind" aria-label="风" style="color:#b8c49c"></button>
+          <button class="wx-swatch" type="button" data-wx="fog" aria-label="雾" style="color:#d4d8d4"></button>
+        </div>
+      </section>
+
+      <!-- 音乐 -->
+      <section class="panel player" aria-label="音乐播放器">
+        <div class="panel-label"><span>NOW PLAYING</span></div>
+        <div class="pl-top">
+          <div class="pl-disc" id="plDisc" aria-hidden="true"></div>
+          <div class="pl-info">
+            <div class="pl-song" id="plSong">暂无曲目</div>
+            <div class="pl-artist" id="plArtist">上传音频到媒体库后自动出现</div>
+          </div>
+        </div>
+        <div class="pl-bar" id="plBar" role="slider" tabindex="0"
+             aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <i id="plFill"></i>
+        </div>
+        <div class="pl-time"><span id="plCur">0:00</span><span id="plDur">0:00</span></div>
+        <div class="pl-controls">
+          <button class="pl-btn" data-act="prev" type="button" aria-label="上一首">‹</button>
+          <button class="pl-btn pl-btn-main" data-act="play" type="button"
+                  aria-label="播放" aria-pressed="false">▶</button>
+          <button class="pl-btn" data-act="next" type="button" aria-label="下一首">›</button>
+        </div>
+        <div class="pl-list" id="plList" role="listbox" aria-label="播放列表"></div>
+        <audio id="plAudio" preload="none"></audio>
+      </section>
+
+    </aside>
+
+    <!-- 右：图片 + 项目 + 日志 -->
+    <div class="col col-right">
+
+      <!-- 图片轮播 -->
+      <section class="panel gallery" aria-label="作品截图">
+        <div class="panel-label">
+          <span>GALLERY</span>
+          <b id="galleryCount">--</b>
+        </div>
+        <div class="slider" id="slider" tabindex="0" role="region"
+             aria-label="图片轮播" aria-roledescription="carousel">
+          <div class="slider-track" id="sliderTrack"></div>
+          <div class="slider-controls">
+            <button class="s-prev" type="button" aria-label="上一张">‹</button>
+            <button class="s-next" type="button" aria-label="下一张">›</button>
+          </div>
+          <div class="s-dots" id="sliderDots"></div>
+        </div>
+      </section>
+
+      <!-- 项目 -->
+      <section class="panel list-panel" aria-labelledby="projH">
+        <div class="panel-label">
+          <span id="projH">SELECTED WORK</span>
+          <b id="projCount">--</b>
+        </div>
+        <div class="rows" id="projList"></div>
+      </section>
+
+      <!-- 日志 -->
+      <section class="panel list-panel" aria-labelledby="noteH">
+        <div class="panel-label">
+          <span id="noteH">FIELD NOTES</span>
+          <b id="noteCount">--</b>
+        </div>
+        <div class="rows" id="noteList"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- 页脚 -->
+  <footer class="footbar">
+    <span>© 2026 高冷的网友 208</span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span>让想法有迹可循</span>
+    <span class="foot-right">
+      <a href="https://yuban211.duckdns.org:59684/studio/" target="_blank" rel="noopener">完整站点 ↗</a>
+      <a href="https://yuban211.duckdns.org:59684/studio/blog" target="_blank" rel="noopener">日志 ↗</a>
+    </span>
+  </footer>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+{% block title %}{{ settings.get('site_title','高冷的网友 208 · 个人数字工作室') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ prefix }}/static/hero-screen.css">
+<link rel="stylesheet" href="{{ prefix }}/static/studio-layout.css">
+<link rel="stylesheet" href="{{ prefix }}/static/info-card.css">
+<link rel="stylesheet" href="{{ prefix }}/static/album-slider.css">
+<link rel="stylesheet" href="{{ prefix }}/static/weather-scene.css">
+<link rel="stylesheet" href="{{ prefix }}/static/fullpage.css">
+{% endblock %}
+
+{% block bodyclass %}studio-page{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+{# ══════════════════════════════════════════════════════════════
+   开屏动画（照搬参考站 begin.vue）
+   ══════════════════════════════════════════════════════════════ #}
+<div class="splash" id="splash" role="presentation" aria-hidden="true">
+  <div class="splash-brand">
+    <svg class="splash-mark" viewBox="0 0 420 110" fill="none" focusable="false" aria-hidden="true">
+      <text x="210" y="72" text-anchor="middle"
+            font-family="'YouSheBiaoTiHei','优设标题黑','Songti SC',serif"
+            font-size="54" font-weight="500" letter-spacing="10"
+            stroke="#2c2c2c" stroke-width="1.2" fill="transparent">数字工作室</text>
+      <path d="M96 88 H324" stroke="#a82824" stroke-width="1" opacity="0.5"/>
+    </svg>
+    <div class="splash-seal" aria-hidden="true">
+      <div class="splash-seal-inner">
+        <span class="splash-seal-at">@</span>
+        <span class="splash-seal-text">高冷的网友 208</span>
+      </div>
+    </div>
+  </div>
+  <div class="splash-loader" aria-hidden="true">
+    <div class="b1"></div><div class="b2"></div><div class="b3"></div>
+    <div class="b4"></div><div class="b5"></div><div class="b6"></div>
+    <div class="b7"></div><div class="b8"></div><div class="b9"></div>
+    <div class="b10"></div><div class="b11"></div><div class="b12"></div>
+  </div>
+  <span class="splash-caption">Loading...</span>
+</div>
+
+{# ══════════════════════════════════════════════════════════════
+   第一屏 Hero —— 三行文字 + 光速飞船 + 雪点 + 波浪
+   ══════════════════════════════════════════════════════════════ #}
+{# ══ 纵向分屏容器（Swiper fullpage 的等价实现）══ #}
+<div class="fp-viewport" data-fullpage>
+  <div class="fp-track">
+
+  <div class="fp-slide fp-slide-hero">
+  <section class="hero-screen" id="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <canvas class="hero-snow" aria-hidden="true"></canvas>
+
+  <h1 class="hero-lines">
+    <span>把想法</span>
+    <span>做成</span>
+    <span>能跑的东西</span>
+  </h1>
+
+  <div class="hero-speeder-wrap" aria-hidden="true">
+    <div class="speeder">
+      <span><span></span><span></span><span></span><span></span></span>
+      <div class="base">
+        <span></span>
+        <div class="face"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-waves" aria-hidden="true">
+    <svg class="waves" xmlns="http://www.w3.org/2000/svg" viewBox="0 24 150 28"
+         preserveAspectRatio="none" shape-rendering="auto">
+      <defs>
+        <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z"/>
+      </defs>
+      <g class="parallax">
+        <use href="#gentle-wave" x="48" y="0" fill="rgba(240,240,240,0.9)"/>
+        <use href="#gentle-wave" x="48" y="3" fill="rgba(240,240,240,0.7)"/>
+        <use href="#gentle-wave" x="48" y="5" fill="rgba(240,240,240,0.5)"/>
+        <use href="#gentle-wave" x="48" y="7" fill="#f0f0f0"/>
+      </g>
+    </svg>
+  </div>
+
+  <a class="hero-scroll" href="#main-modules">SCROLL</a>
+  </section>
+  </div>
+
+  <div class="fp-slide">
+  <div class="fp-scroll" id="main-modules">
+
+{# ══════════════════════════════════════════════════════════════
+   第二屏 —— 双列布局（照搬参考站 two-columns）
+   ══════════════════════════════════════════════════════════════ #}
+<div class="content-shell">
+  <div class="content-inner">
+    <div class="two-columns">
+
+      {# ── 左列：信息卡 + 播放器 ── #}
+      <aside class="left-column">
+
+        {# 信息卡（照搬 information.vue） #}
+        <div class="info-card" data-anim>
+          <div class="avatar-wrapper">
+            <div class="skeleton-avatar" aria-hidden="true"></div>
+            <img class="avatar" src="{{ prefix }}/static/avatar.svg"
+                 alt="{{ settings.get('signature','高冷的网友 208') }}" loading="lazy"
+                 onerror="this.style.display='none';var s=this.parentNode.querySelector('.skeleton-avatar');if(s)s.classList.add('skeleton-hidden')">
+          </div>
+          <div class="info-name">{{ settings.get('signature','高冷的网友 208') }}</div>
+          <div class="info-divider" aria-hidden="true"></div>
+          <div class="info-bio">{{ settings.get('tagline','认准的方向，就坚定一些') }}</div>
+          <ul class="social-wrap" aria-label="联系方式">
+            <a class="social-icon github" href="{{ settings.get('github_url','#') }}" aria-label="GitHub"
+               {% if settings.get('github_url') %}target="_blank" rel="noopener noreferrer"{% endif %}>
+              <span class="tooltip">GitHub</span>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2.247a10 10 0 0 0-3.162 19.487c.5.088.687-.212.687-.475c0-.237-.012-1.025-.012-1.862c-2.513.462-3.163-.613-3.363-1.175a3.64 3.64 0 0 0-1.025-1.413c-.35-.187-.85-.65-.013-.662a2 2 0 0 1 1.538 1.025a2.137 2.137 0 0 0 2.912.825a2.1 2.1 0 0 1 .638-1.338c-2.225-.25-4.55-1.112-4.55-4.937a3.9 3.9 0 0 1 1.025-2.688a3.6 3.6 0 0 1 .1-2.65s.837-.262 2.75 1.025a9.43 9.43 0 0 1 5 0c1.912-1.3 2.75-1.025 2.75-1.025a3.6 3.6 0 0 1 .1 2.65a3.87 3.87 0 0 1 1.025 2.688c0 3.837-2.338 4.687-4.562 4.937a2.37 2.37 0 0 1 .674 1.85c0 1.338-.012 2.413-.012 2.75c0 .263.187.575.687.475A10.005 10.005 0 0 0 12 2.247"/>
+              </svg>
+            </a>
+            <a class="social-icon mail" href="{{ prefix }}/about" aria-label="关于">
+              <span class="tooltip">关于</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2"/>
+                <path d="m3 7 9 6 9-6"/>
+              </svg>
+            </a>
+            <a class="social-icon bilibili" href="{{ prefix }}/feed.xml" aria-label="RSS">
+              <span class="tooltip">RSS</span>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="6.2" cy="17.8" r="2.1"/>
+                <path d="M4 10.5a9.5 9.5 0 0 1 9.5 9.5h-2.6A6.9 6.9 0 0 0 4 13.1z"/>
+                <path d="M4 4.2A15.8 15.8 0 0 1 19.8 20h-2.7A13.1 13.1 0 0 0 4 6.9z"/>
+              </svg>
+            </a>
+          </ul>
+        </div>
+
+        {# 音乐播放器 #}
+        <div class="player-block" data-anim>
+          <div class="card-label"><span>NOW PLAYING</span></div>
+          <div class="player" data-tracks='{{ tracks_json|default("[]")|safe }}'>
+            <div class="player-top">
+              <div class="player-disc" aria-hidden="true"></div>
+              <div class="player-info">
+                <div class="player-song">暂无曲目</div>
+                <div class="player-artist">音频放入媒体库后自动出现</div>
+              </div>
+            </div>
+            <div class="player-bar" role="slider" tabindex="0"
+                 aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+            <div class="player-time"><span class="t-cur">0:00</span><span class="t-dur">0:00</span></div>
+            <div class="player-controls">
+              <button class="player-btn" data-act="prev" type="button" aria-label="上一首">‹</button>
+              <button class="player-btn player-btn--main" data-act="play" type="button"
+                      aria-label="播放" aria-pressed="false">▶</button>
+              <button class="player-btn" data-act="next" type="button" aria-label="下一首">›</button>
+            </div>
+            <div class="player-list" role="listbox" aria-label="播放列表"></div>
+            <audio preload="none"></audio>
+          </div>
+        </div>
+
+      </aside>
+
+      {# ── 右列：顶行（轮播+天气）+ 项目 + 日志 ── #}
+      <div class="right-column">
+
+        {# 顶行：轮播 + 天气卡（照搬 top-row 比例） #}
+        <div class="top-row">
+
+          {# 图片轮播（照搬 image.vue 结构） #}
+          <div class="album-container" data-anim>
+            <div class="slider-wrapper" data-album tabindex="0" role="region"
+                 aria-label="作品截图" aria-roledescription="carousel">
+              <div class="slider-viewport">
+                <div class="slider-inner">
+                  {% if shots %}
+                    {% for src in shots %}
+                    <div class="slide{% if loop.first %} active{% endif %}"
+                         {% if loop.first %}aria-hidden="false"{% else %}aria-hidden="true"{% endif %}>
+                      <div class="property-card">
+                        <div class="property-image">
+                          <div class="skeleton-img" aria-hidden="true"></div>
+                          <div class="bg-img" data-src="{{ src }}"></div>
+                        </div>
+                        <div class="property-description">
+                          <p>作品截图 {{ loop.index }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  {% else %}
+                    <div class="slide active" aria-hidden="false">
+                      <div class="property-card">
+                        <div class="property-image">
+                          <div class="skeleton-img" aria-hidden="true"></div>
+                          <div class="bg-img"></div>
+                        </div>
+                        <div class="property-description">
+                          <p>还没有图片<br>上传到媒体库后自动出现</p>
+                        </div>
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% if shots and shots|length > 1 %}
+              <div class="slider-controls prev-next">
+                <button class="prev" type="button" aria-label="上一张"><span>&#10094;</span></button>
+                <button class="next" type="button" aria-label="下一张"><span>&#10095;</span></button>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# 天气卡 #}
+          {% if weather %}
+          <div class="weather-card-comp" data-anim>
+            <div class="wx-card"
+                 data-weather-scene="{{ weather.theme }}"
+                 {% if weather.theme == 'thunder' %}data-dark="1"{% endif %}>
+              <canvas class="wx-canvas" aria-hidden="true"></canvas>
+              <div class="wx-overlay">
+                <div class="wx-top">
+                  <span class="wx-place">{{ weather.cityName }}</span>
+                  {% if weather.isDemo %}<span class="wx-demo">演示</span>{% endif %}
+                </div>
+                <div>
+                  <div class="wx-temp">{{ '%.0f'|format(weather.temperature) }}<span>°C</span></div>
+                  <div class="wx-desc">
+                    {{ weather.condition }}{% if weather.precipProbability is not none %} · 降水 {{ '%.0f'|format(weather.precipProbability) }}%{% endif %}
+                  </div>
+                </div>
+                <div class="wx-bottom">
+                  <div class="wx-meta">
+                    {% if weather.humidity is not none %}
+                    <span>湿度 <b>{{ '%.0f'|format(weather.humidity) }}%</b></span>
+                    {% endif %}
+                    <span>观测 <b>{{ weather.observedAt[11:16] }}</b></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="wx-swatches" role="group" aria-label="天气预览">
+              <button class="wx-swatch" type="button" data-wx="sun" aria-pressed="{{ 'true' if weather.theme == 'sun' else 'false' }}" aria-label="晴" style="color:#f0c674"></button>
+              <button class="wx-swatch" type="button" data-wx="cloud" aria-pressed="{{ 'true' if weather.theme == 'cloud' else 'false' }}" aria-label="多云" style="color:#c8ccc8"></button>
+              <button class="wx-swatch" type="button" data-wx="rain" aria-pressed="{{ 'true' if weather.theme == 'rain' else 'false' }}" aria-label="雨" style="color:#7aa8d8"></button>
+              <button class="wx-swatch" type="button" data-wx="thunder" aria-pressed="false" aria-label="雷暴" style="color:#5c6670"></button>
+              <button class="wx-swatch" type="button" data-wx="snow" aria-pressed="false" aria-label="雪" style="color:#e8f0f4"></button>
+              <button class="wx-swatch" type="button" data-wx="wind" aria-pressed="false" aria-label="风" style="color:#b8c49c"></button>
+              <button class="wx-swatch" type="button" data-wx="fog" aria-pressed="false" aria-label="雾" style="color:#d4d8d4"></button>
+            </div>
+          </div>
+          {% endif %}
+
+        </div>
+
+        {# 文章列表（照搬 ArticleShow 的列表形态） #}
+        <section class="articles-section" data-anim aria-labelledby="art-h">
+          <div class="card-label">
+            <span id="art-h">FIELD NOTES</span>
+            <b>{{ '%02d'|format(posts|length) }}</b>
+          </div>
+          <div class="article-list">
+            {% for post in posts %}
+            <a class="article-row" href="{{ prefix }}/blog/{{ post.slug }}">
+              <span class="article-idx">{{ '%02d'|format(loop.index) }}</span>
+              <span class="article-main">
+                <span class="article-title">{{ post.title }}</span>
+                <span class="article-summary">{{ post.summary }}</span>
+              </span>
+              <span class="article-date">{{ (post.published_at or post.created_at)[:10] }}</span>
+              <span class="article-arrow">↗</span>
+            </a>
+            {% else %}
+            <div class="empty-note">
+              第一篇记录，留给未来的某一天。<br>
+              <small>NO POSTS YET</small>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+
+        {# 项目列表 #}
+        <section class="projects-section" data-anim aria-labelledby="proj-h">
+          <div class="card-label">
+            <span id="proj-h">SELECTED WORK</span>
+            <b>{{ '%02d'|format(projects|length) }}</b>
+          </div>
+          <div class="proj-list">
+            {% for project in projects %}
+            <a class="proj-row" href="{{ prefix }}/projects/{{ project.slug }}">
+              <span class="proj-idx">{{ '%02d'|format(loop.index) }}</span>
+              <span class="proj-main">
+                <span class="proj-title">{{ project.title }}</span>
+                <span class="proj-summary">{{ project.summary }}</span>
+              </span>
+              <span class="proj-status">{{ project.status }}</span>
+              <span class="proj-arrow">↗</span>
+            </a>
+            {% else %}
+            <p class="empty-note">新项目正在路上。</p>
+            {% endfor %}
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  {# 页脚 #}
+  <footer class="site-foot">
+    <span>© 2026 {{ settings.get('signature','高冷的网友 208') }}</span>
+    <span class="foot-sep" aria-hidden="true">·</span>
+    <span>让想法有迹可循</span>
+    <span class="foot-right">
+      <a href="{{ prefix }}/about">关于</a>
+      <a href="{{ prefix }}/feed.xml">RSS</a>
+      <a href="{{ prefix }}/admin/login">后台</a>
+    </span>
+  </footer>
+</div>{# content-shell 结束 #}
+  </div>{# fp-scroll 结束 #}
+  </div>{# fp-slide 结束 #}
+
+  <div class="fp-dots" aria-hidden="false"></div>
+</div>{# fp-track 结束 #}
+</div>{# fp-viewport 结束 #}
+{% endblock %}

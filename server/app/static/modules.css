@@ -1,0 +1,379 @@
+/* ═══════════════════════════════════════════════════════════════
+   首页组件模块（Card Modules）
+   ─────────────────────────────────────────────────────────────────
+   新增三块，参考站的做法 + 本站极简编辑部的调性：
+     1. .wcard  天气卡 —— 渐变背景随天气变化
+     2. .player 音乐播放器 —— 旋转唱片 + 进度条 + 播放列表
+     3. .slider 图片轮播 —— 自动播放 + 指示点 + 键盘可操作
+   ★ 全部只用 transform / opacity 做动效，符合性能约束
+   ★ 触控设备不依赖悬停
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 模块网格：左栏卡片 + 右侧内容 ── */
+.module-grid {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.module-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+@media (max-width: 900px) {
+  .module-grid { grid-template-columns: 1fr; }
+}
+
+/* 卡片通用外观 */
+.card {
+  background: #fff;
+  border: 1px solid var(--line, #d8d6ce);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title {
+  font: 500 11px/1 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted, #777970);
+}
+
+/* ═══ 1. 天气卡 ═══ */
+.wcard {
+  background: linear-gradient(150deg, #dfe8d4 0%, #eef1e6 55%, #f6f4ec 100%);
+  border-color: #d5ddc8;
+}
+/* 天气主题：用 data-type 切换渐变，和参考站思路一致 */
+.wcard[data-type="rain"] {
+  background: linear-gradient(150deg, #ccd6dd 0%, #e3e9ee 55%, #f2f4f6 100%);
+  border-color: #c6d0d8;
+}
+.wcard[data-type="cloud"] {
+  background: linear-gradient(150deg, #dcdcd4 0%, #ecece6 55%, #f6f4ec 100%);
+}
+.wcard[data-type="sun"] {
+  background: linear-gradient(150deg, #f6e6c4 0%, #f9f0dc 55%, #f8f4e8 100%);
+  border-color: #ecdcb8;
+}
+
+.wcard-city {
+  font: 500 13px/1 var(--serif, Georgia, serif);
+  color: #2c3a28;
+}
+.wcard-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 6px 0 12px;
+}
+.wcard-temp {
+  font: 500 52px/1 var(--serif, Georgia, serif);
+  letter-spacing: -0.04em;
+  color: #222522;
+}
+.wcard-temp span { font-size: 22px; vertical-align: super; opacity: 0.55; }
+.wcard-desc {
+  font-size: 13px;
+  color: #4a5445;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.wcard-meta {
+  display: flex;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(34, 37, 34, 0.1);
+  font: 400 11px/1.6 var(--mono, ui-monospace, monospace);
+  color: #5c6657;
+}
+.wcard-meta b { font-weight: 500; color: #2c3a28; }
+
+/* 演示数据提示：诚实标注，不冒充真实数据 */
+.wcard-demo {
+  display: inline-block;
+  margin-top: 10px;
+  font: 400 10px/1 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.06em;
+  color: #8a7a4a;
+  background: rgba(216, 190, 120, 0.22);
+  padding: 4px 7px;
+  border-radius: 3px;
+}
+
+/* ═══ 2. 音乐播放器 ═══ */
+.player { padding-bottom: 16px; }
+.player-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* 旋转唱片 */
+.player-disc {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 50%, #f6f4ec 0 22%, transparent 23%),
+    repeating-radial-gradient(circle at 50% 50%,
+      #2b2b2b 0 2px, #1e1e1e 2px 4px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+/* 播放时才转，暂停立刻停 —— 用 animation-play-state 控制 */
+.player-disc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.player.is-playing .player-disc {
+  animation: discSpin 6s linear infinite;
+}
+@keyframes discSpin {
+  to { transform: rotate(360deg); }
+}
+/* 减少动效：不转 */
+@media (prefers-reduced-motion: reduce) {
+  .player.is-playing .player-disc { animation: none; }
+}
+
+.player-info { min-width: 0; flex: 1; }
+.player-song {
+  font: 500 14px/1.4 var(--serif, Georgia, serif);
+  color: #222522;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-artist {
+  font: 400 11px/1.5 var(--mono, ui-monospace, monospace);
+  color: var(--muted, #777970);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 进度条 */
+.player-bar {
+  height: 3px;
+  background: rgba(34, 37, 34, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+.player-bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #5c6657;
+  border-radius: 2px;
+  transition: width 0.2s linear;
+}
+.player-time {
+  display: flex;
+  justify-content: space-between;
+  font: 400 10px/1 var(--mono, ui-monospace, monospace);
+  color: var(--muted, #777970);
+  margin-bottom: 12px;
+}
+
+/* 控制按钮 */
+.player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+.player-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line, #d8d6ce);
+  background: transparent;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #222522;
+  transition:
+    transform var(--dur-micro, 160ms) var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1)),
+    background-color var(--dur-micro, 160ms) ease;
+}
+.player-btn:hover { background: rgba(34, 37, 34, 0.06); }
+.player-btn:active { transform: scale(0.94); }
+.player-btn:focus-visible {
+  outline: 2px solid #5c6657;
+  outline-offset: 2px;
+}
+.player-btn--main {
+  width: 46px;
+  height: 46px;
+  background: #222522;
+  color: #f7f6f2;
+  border-color: #222522;
+}
+.player-btn--main:hover { background: #3a3d3a; }
+
+/* 播放列表 */
+.player-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--line, #d8d6ce);
+  padding-top: 10px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #4a5445;
+  transition: background-color var(--dur-micro, 160ms) ease;
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.player-item:hover { background: rgba(34, 37, 34, 0.05); }
+.player-item.is-active { color: #222522; font-weight: 500; }
+.player-item.is-active::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  background: #5c6657;
+  border-radius: 2px;
+  flex: none;
+}
+.player-item-index {
+  font: 400 10px/1 var(--mono, ui-monospace, monospace);
+  color: var(--muted, #777970);
+  width: 14px;
+  flex: none;
+}
+
+/* ═══ 3. 图片轮播 ═══ */
+.slider {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e8e7dd;
+  aspect-ratio: 16 / 10;
+}
+.slider-track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.62s var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  will-change: transform;
+}
+.slider-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  position: relative;
+}
+.slider-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* 无图时的占位：不空着，给一个几何构图 */
+.slider-slide--empty {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, #e3e8dc, #eef1e6);
+}
+.slider-slide--empty span {
+  font: 400 10px/1.6 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.16em;
+  color: #8a8578;
+  text-align: center;
+  padding: 0 20px;
+}
+.slider-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 26px 18px 14px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* 左右箭头 */
+.slider-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #222522;
+  opacity: 0;
+  transition: opacity var(--dur-state, 280ms) ease;
+  z-index: 2;
+}
+.slider:hover .slider-nav,
+.slider:focus-within .slider-nav { opacity: 1; }
+/* 触控设备：箭头常显，不依赖悬停 */
+@media (hover: none) {
+  .slider-nav { opacity: 0.9; }
+}
+.slider-nav--prev { left: 10px; }
+.slider-nav--next { right: 10px; }
+.slider-nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* 指示点 */
+.slider-dots {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+.slider-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-state, 280ms) ease,
+    transform var(--dur-state, 280ms) ease;
+}
+.slider-dot.is-active {
+  background: #fff;
+  transform: scale(1.35);
+}
+.slider-dot:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* 减少动效：轮播不做位移动画，直接切换 */
+@media (prefers-reduced-motion: reduce) {
+  .slider-track { transition: none; }
+}

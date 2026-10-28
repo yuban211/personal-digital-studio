@@ -1,0 +1,57 @@
+# ═══════════════════════════════════════════════════════════════
+# 个人数字工作室 —— 忽略规则
+# ═══════════════════════════════════════════════════════════════
+
+# ── 凭据：绝不进版本库 ──
+credentials/
+*.env
+.env
+.env.*
+!*.env.example
+*.secret
+
+# ── 运行时数据 ──
+server/instance/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/data/
+server/media/
+
+# ── 离线依赖库（332 文件 / 18MB，随包上传到服务器，不随仓库分发）──
+server/_vendor/
+vendor/
+*.whl
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node ──
+node_modules/
+dist/
+build/
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── 日志 ──
+*.log
+logs/
+
+# ── 临时文件 ──
+tmp/
+*.tmp
+*.bak
+*.bak-*

@@ -1,0 +1,279 @@
+/* ═══════════════════════════════════════════════════════════════
+   动效设计令牌（Motion Tokens）
+   ─────────────────────────────────────────────────────────────────
+   为什么要单独一层：
+     任务书要求「所有动效必须共享设计令牌，禁止各页面随意定义动画参数」。
+     把时长/缓动/位移集中成变量，页面只引用变量，改一处全网生效。
+
+   时长依据 GSAP 官方无障碍指南与业界实践：
+     - 微交互 120–220ms：低于 100ms 用户感知不到，高于 250ms 显得迟钝
+     - 状态变化 200–350ms：需要「看得见但不等待」的区间
+     - 内容揭幕 400–700ms：足够形成叙事感，又不至于让人等
+     - 页面转场 350–650ms：必须比内容揭幕短，否则像卡住
+     - 品牌开场 800–1400ms：这是唯一允许「慢」的场合，且只在首次访问
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* —— 时长 —— */
+  --dur-micro: 160ms;
+  --dur-state: 280ms;
+  --dur-reveal: 620ms;
+  --dur-transition: 480ms;
+  --dur-brand: 1100ms;
+
+  /* —— 缓动 ——
+     out-expo: 起步快、收尾极缓，适合揭幕（物体「飞入并就位」）
+     out-quart: 比 expo 收敛快，适合位移
+     in-out-quart: 两端平缓，适合状态切换
+     out-back: 轻微过冲，只用于强调（如印章、圆点） */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* —— 位移 —— */
+  --shift-sm: 12px;
+  --shift-md: 24px;
+  --shift-lg: 48px;
+
+  /* —— 缩放 —— */
+  --scale-in: 0.96;
+  --scale-lift: 1.03;
+
+  /* —— 透明度 —— */
+  --opacity-ghost: 0;
+  --opacity-dim: 0.35;
+
+  /* —— 错峰 —— */
+  --stagger-tight: 60ms;
+  --stagger-loose: 110ms;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   揭幕基础状态
+   ★ 关键约束：内容在未动画时必须可见。
+     做法不是 display:none，而是「有动画时才隐藏」——
+     即 .js-motion 存在时才应用初始隐藏态。
+     这样 JS 失败 / 关闭动效时，内容永远可读。
+   ═══════════════════════════════════════════════════════════════ */
+.js-motion .reveal {
+  opacity: 0;
+  transform: translateY(var(--shift-md));
+  transition:
+    opacity var(--dur-reveal) var(--ease-out-expo),
+    transform var(--dur-reveal) var(--ease-out-expo);
+  will-change: opacity, transform;
+}
+.js-motion .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* 动画结束后撤掉 will-change，避免长期占用合成层 */
+.js-motion .reveal.is-settled {
+  will-change: auto;
+}
+
+/* 错峰：同一容器内的逐个揭幕 */
+.js-motion .stagger > * {
+  opacity: 0;
+  transform: translateY(var(--shift-sm));
+  transition:
+    opacity var(--dur-reveal) var(--ease-out-expo),
+    transform var(--dur-reveal) var(--ease-out-expo);
+}
+.js-motion .stagger.is-visible > * {
+  opacity: 1;
+  transform: none;
+}
+.js-motion .stagger.is-visible > *:nth-child(1) { transition-delay: 0ms; }
+.js-motion .stagger.is-visible > *:nth-child(2) { transition-delay: var(--stagger-tight); }
+.js-motion .stagger.is-visible > *:nth-child(3) { transition-delay: calc(var(--stagger-tight) * 2); }
+.js-motion .stagger.is-visible > *:nth-child(4) { transition-delay: calc(var(--stagger-tight) * 3); }
+.js-motion .stagger.is-visible > *:nth-child(5) { transition-delay: calc(var(--stagger-tight) * 4); }
+.js-motion .stagger.is-visible > *:nth-child(6) { transition-delay: calc(var(--stagger-tight) * 5); }
+
+/* ═══════════════════════════════════════════════════════════════
+   文字逐行揭幕
+   ★ 无障碍要点（GSAP 官方指南）：
+     拆分文字会破坏屏幕阅读器朗读。这里**不拆 DOM**，
+     而是用每行一个 <span> 的写法（模板里本来就是分行 span），
+     保持语义完整，屏幕阅读器读到的是完整句子。
+   ═══════════════════════════════════════════════════════════════ */
+.js-motion .title-line {
+  display: block;
+  overflow: hidden; /* 遮罩：让文字「从下方升起」 */
+}
+.js-motion .title-line > span {
+  display: block;
+  transform: translateY(105%);
+  transition: transform var(--dur-brand) var(--ease-out-expo);
+}
+.js-motion .title-line.is-visible > span {
+  transform: none;
+}
+.js-motion .title-line:nth-child(2) > span { transition-delay: 90ms; }
+.js-motion .title-line:nth-child(3) > span { transition-delay: 180ms; }
+
+/* ═══════════════════════════════════════════════════════════════
+   品牌标识 SVG 描边
+   用 stroke-dasharray/dashoffset 实现「画出来」的效果。
+   ★ 只做一次，且很慢（--dur-brand * 1.6），这是唯一允许慢的地方。
+   ═══════════════════════════════════════════════════════════════ */
+.js-motion .brand-mark path,
+.js-motion .brand-mark circle,
+.js-motion .brand-mark line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  transition: stroke-dashoffset 1.8s var(--ease-in-out-quart);
+}
+.js-motion .brand-mark.is-visible path,
+.js-motion .brand-mark.is-visible circle,
+.js-motion .brand-mark.is-visible line {
+  stroke-dashoffset: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   主视觉遮罩展开
+   ★ 用 clip-path 而不是 width/height：clip-path 走合成层，
+     width/height 会触发重排（任务书禁止）。
+   ═══════════════════════════════════════════════════════════════ */
+.js-motion .hero-art {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 1.2s var(--ease-out-expo);
+}
+.js-motion .hero-art.is-visible {
+  clip-path: inset(0 0 0 0);
+}
+
+/* 轨道环逐个出现 */
+.js-motion .orbit {
+  opacity: 0;
+  transform: scale(0.82);
+  transition:
+    opacity var(--dur-reveal) var(--ease-out-expo),
+    transform var(--dur-reveal) var(--ease-out-expo);
+}
+.js-motion .hero-art.is-visible .orbit {
+  opacity: 1;
+  transform: none;
+}
+.js-motion .hero-art.is-visible .orbit-a { transition-delay: 240ms; }
+.js-motion .hero-art.is-visible .orbit-b { transition-delay: 380ms; }
+.js-motion .hero-art.is-visible .orbit-c { transition-delay: 520ms; }
+
+/* 艺术线条描边 */
+.js-motion .art-line path {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  transition: stroke-dashoffset 1.6s var(--ease-in-out-quart) 300ms;
+}
+.js-motion .hero-art.is-visible .art-line path {
+  stroke-dashoffset: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   项目卡片悬停
+   ★ 只动 transform 与 opacity（任务书硬性要求）
+   ★ 触控设备不依赖悬停（用 @media hover 限定）
+   ═══════════════════════════════════════════════════════════════ */
+.project-card .project-visual {
+  transition: transform var(--dur-state) var(--ease-out-quart);
+}
+@media (hover: hover) and (pointer: fine) {
+  .project-card:hover .project-visual {
+    transform: translateY(-4px);
+  }
+  .project-card:hover .project-visual .visual-arrow {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  .project-card:hover h3 {
+    text-decoration-color: currentColor;
+  }
+}
+.project-visual .visual-arrow {
+  opacity: 0;
+  transform: translate(-6px, 6px);
+  transition:
+    opacity var(--dur-state) var(--ease-out-quart),
+    transform var(--dur-state) var(--ease-out-quart);
+}
+/* 触控设备：箭头常驻可见 */
+@media (hover: none) {
+  .project-visual .visual-arrow {
+    opacity: 0.7;
+    transform: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   圆点 / 状态指示的呼吸效果
+   ★ 任务书禁止「无意义的无限循环」。这里保留但降强度：
+     只改 opacity，周期 3.2s，幅度 0.4–1，属于轻微提示而非炫技。
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+.status-dot {
+  animation: breathe 3.2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   减少动态效果（系统级设置）
+   ★ 原则（GSAP 指南）：
+     装饰性 → 直接移除；功能性 → 简化而非删除。
+     这里把所有装饰性动效归零，并保证内容可见。
+   ═══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 确保内容不因跳过动画而隐藏 */
+  .js-motion .reveal,
+  .js-motion .stagger > *,
+  .js-motion .hero-art,
+  .js-motion .orbit {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+  .js-motion .title-line > span {
+    transform: none !important;
+  }
+  .js-motion .brand-mark path,
+  .js-motion .brand-mark circle,
+  .js-motion .brand-mark line,
+  .js-motion .art-line path {
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   用户手动关闭动效（站点设置 motion_intensity = still）
+   ★ GSAP 指南建议提供 UI 级开关，因为不是所有人都知道改系统设置
+   ═══════════════════════════════════════════════════════════════ */
+html[data-motion="still"] .js-motion .reveal,
+html[data-motion="still"] .js-motion .stagger > *,
+html[data-motion="still"] .js-motion .hero-art,
+html[data-motion="still"] .js-motion .orbit {
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: none !important;
+}
+html[data-motion="still"] .js-motion .title-line > span {
+  transform: none !important;
+}
+html[data-motion="still"] .js-motion .brand-mark path,
+html[data-motion="still"] .js-motion .brand-mark circle,
+html[data-motion="still"] .js-motion .art-line path {
+  stroke-dashoffset: 0 !important;
+}
+html[data-motion="still"] .status-dot {
+  animation: none;
+  opacity: 0.8;
+}

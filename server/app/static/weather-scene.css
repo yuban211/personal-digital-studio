@@ -1,0 +1,168 @@
+/* ═══════════════════════════════════════════════════════════════
+   天气场景卡样式
+   ─────────────────────────────────────────────────────────────────
+   结构：
+     .wx-card                容器（含 data-weather-scene）
+       canvas.wx-canvas      场景画布（绝对铺满，底层）
+       .wx-overlay           文字层（温度/描述，浮在画布上）
+       .wx-swatches          天气切换按钮
+
+   设计：让场景成为卡的"皮肤"，文字浮在上面，带轻微暗角保证可读性。
+   ═══════════════════════════════════════════════════════════════ */
+
+.wx-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  min-height: 132px;
+  isolation: isolate;
+}
+
+.wx-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 暗角 + 底部渐变：保证任何天气底色下文字都清晰 */
+.wx-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0%, transparent 32%, rgba(0, 0, 0, 0.18) 100%);
+}
+
+.wx-overlay {
+  position: relative;
+  z-index: 2;
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 132px;
+  justify-content: space-between;
+}
+
+.wx-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wx-place {
+  font: 500 12px/1 var(--serif, Georgia, serif);
+  color: rgba(24, 30, 24, 0.92);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.02em;
+}
+/* 雷暴/深色天空下文字反白 */
+.wx-card[data-dark="1"] .wx-place,
+.wx-card[data-dark="1"] .wx-temp,
+.wx-card[data-dark="1"] .wx-desc,
+.wx-card[data-dark="1"] .wx-meta {
+  color: rgba(240, 246, 238, 0.96);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.wx-temp {
+  font: 500 44px/1 var(--serif, Georgia, serif);
+  letter-spacing: -0.045em;
+  color: rgba(20, 26, 20, 0.94);
+  text-shadow: 0 2px 6px rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+.wx-temp span {
+  font-size: 17px;
+  vertical-align: super;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+.wx-desc {
+  font: 400 12px/1.5 var(--serif, Georgia, serif);
+  color: rgba(30, 36, 30, 0.82);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.45);
+}
+
+.wx-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wx-meta {
+  display: flex;
+  gap: 12px;
+  font: 400 10px/1.4 var(--mono, ui-monospace, monospace);
+  color: rgba(38, 44, 38, 0.72);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+.wx-meta b { font-weight: 500; }
+
+/* 演示数据角标 */
+.wx-demo {
+  font: 400 9px/1 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.06em;
+  color: #7a6428;
+  background: rgba(232, 208, 140, 0.7);
+  padding: 3px 6px;
+  border-radius: 2px;
+  text-shadow: none;
+}
+
+/* 天气切换按钮 */
+.wx-swatches {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 5px;
+  padding: 0 16px 12px;
+}
+.wx-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 200ms cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 200ms ease;
+  background: transparent;
+  position: relative;
+}
+.wx-swatch::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+.wx-swatch:hover { transform: scale(1.16); }
+.wx-swatch:active { transform: scale(0.94); }
+.wx-swatch[aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.wx-swatch:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+  .wx-card { min-height: 148px; }
+  .wx-temp { font-size: 38px; }
+  .wx-swatch { width: 24px; height: 24px; }
+}

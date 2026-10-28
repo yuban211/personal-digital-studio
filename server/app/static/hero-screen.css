@@ -1,0 +1,339 @@
+/* ═══════════════════════════════════════════════════════════════
+   Hero 第一屏 —— 移植自参考站 text.vue
+   ─────────────────────────────────────────────────────────────────
+   核心构成（全部照搬）：
+     1. 三行文字逐行揭幕：clip-path 裁切 + translateY 上移
+     2. 第三行用强调黄 #FFE221
+     3. 光速飞船：纯 CSS 三角拼接，纯白带发光
+     4. 雪点画布：Canvas 飘落颗粒
+     5. 底部波浪 SVG：四层视差
+
+   我的调整：
+     - 文字改成你的「做点 / 真正 / 想做的」→ 保留原文案结构
+     - 8s 循环改成只播 1 次（个人站不需要一直重播）
+     - 增加 prefers-reduced-motion 保护
+   ═══════════════════════════════════════════════════════════════ */
+
+.hero-screen {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: transparent;
+  /* 背景图：用自己的，不搬他的 */
+  isolation: isolate;
+}
+
+/* 雪点画布 */
+.hero-snow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── 三行文字 ── */
+.hero-lines {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-title);
+  font-size: clamp(44px, 9vw, 92px);
+  line-height: 1.14;
+  font-weight: normal;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35);
+}
+
+.hero-lines > span {
+  display: block;
+  width: 100%;
+  /* 遮罩：只露出下方 80%，配合上移形成"升起" */
+  -webkit-clip-path: polygon(100% 0, 100% 100%, 0 100%, 0 80%);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%, 0 80%);
+  transform: translateY(-50px);
+  opacity: 0;
+  animation-timing-function: ease;
+  animation-duration: 2.2s;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+
+/* ★ 参考站是 infinite 8s 一直重播，个人站改成只播一次更克制 */
+.hero-lines > span:nth-child(1) { animation-name: heroW1; animation-delay: 0.1s; }
+.hero-lines > span:nth-child(2) { animation-name: heroW2; animation-delay: 0.32s; }
+.hero-lines > span:nth-child(3) { animation-name: heroW3; animation-delay: 0.54s; }
+
+/* 第三行用强调黄 */
+.hero-lines > span:last-child {
+  color: var(--accent-yellow);
+}
+
+@keyframes heroW1 {
+  0%   { transform: translateY(-50px); opacity: 0; }
+  22%  { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes heroW2 {
+  0%   { transform: translateY(-50px); opacity: 0; }
+  22%  { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes heroW3 {
+  0%   { transform: translateY(-50px); opacity: 0; }
+  22%  { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* 减少动效：直接显示，不做位移动画 */
+@media (prefers-reduced-motion: reduce) {
+  .hero-lines > span {
+    transform: none;
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ── 光速飞船（纯 CSS 三角拼接）── */
+.hero-speeder-wrap {
+  position: relative;
+  z-index: 2;
+  margin-top: 48px;
+  width: 300px;
+  height: 90px;
+}
+
+.speeder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin-left: -50px;
+  animation: speederAnim 0.4s linear infinite;
+}
+
+/* 尾部小柄 */
+.speeder > span {
+  height: 5px;
+  width: 35px;
+  background: rgba(255, 255, 255, 0.85);
+  position: absolute;
+  top: -19px;
+  left: 60px;
+  border-radius: 2px 10px 1px 0;
+}
+
+/* 主体：喷射三角 */
+.base { position: relative; }
+
+.base span {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-right: 100px solid #fff;
+  border-bottom: 6px solid transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+.base span::before {
+  content: '';
+  height: 22px;
+  width: 22px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  right: -110px;
+  top: -16px;
+}
+
+.base span::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 0 solid transparent;
+  border-right: 55px solid #fff;
+  border-bottom: 16px solid transparent;
+  top: -16px;
+  right: -98px;
+}
+
+/* 机头 */
+.face {
+  position: absolute;
+  height: 12px;
+  width: 20px;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  transform: rotate(-40deg);
+  right: -125px;
+  top: -15px;
+}
+.face::after {
+  content: '';
+  height: 12px;
+  width: 12px;
+  background: #fff;
+  right: 4px;
+  top: 7px;
+  position: absolute;
+  transform: rotate(40deg);
+  transform-origin: 50% 50%;
+  border-radius: 0 0 0 2px;
+}
+
+/* 尾部光条 */
+.speeder > span > span {
+  width: 30px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.85);
+  position: absolute;
+  animation: fazer1 0.2s linear infinite;
+}
+.speeder > span > span:nth-child(2) { top: 3px; animation: fazer2 0.4s linear infinite; }
+.speeder > span > span:nth-child(3) { top: 1px; animation: fazer3 0.4s linear infinite; animation-delay: -1s; }
+.speeder > span > span:nth-child(4) { top: 4px; animation: fazer4 1s linear infinite; animation-delay: -1s; }
+
+@keyframes speederAnim {
+  0%   { transform: translate(2px, 1px) rotate(0deg); }
+  10%  { transform: translate(-1px, -3px) rotate(-1deg); }
+  20%  { transform: translate(-2px, 0px) rotate(1deg); }
+  30%  { transform: translate(1px, 2px) rotate(0deg); }
+  40%  { transform: translate(1px, -1px) rotate(1deg); }
+  50%  { transform: translate(-1px, 3px) rotate(-1deg); }
+  60%  { transform: translate(-1px, 1px) rotate(0deg); }
+  70%  { transform: translate(3px, 1px) rotate(-1deg); }
+  80%  { transform: translate(-2px, -1px) rotate(1deg); }
+  90%  { transform: translate(2px, 1px) rotate(0deg); }
+  100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+
+@keyframes fazer1 {
+  0%   { left: 0; opacity: 1; }
+  100% { left: -80px; opacity: 0; }
+}
+@keyframes fazer2 {
+  0%   { left: 0; opacity: 1; }
+  100% { left: -100px; opacity: 0; }
+}
+@keyframes fazer3 {
+  0%   { left: 0; opacity: 1; }
+  100% { left: -50px; opacity: 0; }
+}
+@keyframes fazer4 {
+  0%   { left: 0; opacity: 1; }
+  100% { left: -150px; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speeder,
+  .speeder > span > span { animation: none; }
+}
+
+/* ── 底部波浪（四层视差）── */
+.hero-waves {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  overflow: hidden;
+  line-height: 0;
+  pointer-events: none;
+}
+
+.hero-waves svg {
+  position: relative;
+  width: 100%;
+  height: 8vh;
+  min-height: 110px;
+  max-height: 150px;
+  display: block;
+}
+
+.hero-waves .parallax > use {
+  animation: waveMove 25s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+}
+.hero-waves .parallax > use:nth-child(1) { animation-delay: -2s; animation-duration: 7s; }
+.hero-waves .parallax > use:nth-child(2) { animation-delay: -3s; animation-duration: 10s; }
+.hero-waves .parallax > use:nth-child(3) { animation-delay: -4s; animation-duration: 13s; }
+.hero-waves .parallax > use:nth-child(4) { animation-delay: -5s; animation-duration: 20s; }
+
+@keyframes waveMove {
+  0%   { transform: translate3d(-90px, 0, 0); }
+  100% { transform: translate3d(85px, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-waves .parallax > use { animation: none; }
+}
+
+/* ── 向下滚动提示 ── */
+.hero-scroll {
+  position: absolute;
+  bottom: clamp(70px, 12vh, 140px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font: 400 10px/1 var(--font-mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  animation: heroBounce 2s ease-in-out infinite;
+  text-decoration: none;
+}
+.hero-scroll::after {
+  content: '';
+  width: 1px;
+  height: 26px;
+  background: linear-gradient(rgba(255, 255, 255, 0.7), transparent);
+}
+@keyframes heroBounce {
+  0%, 100% { transform: translate(-50%, 0); }
+  50%      { transform: translate(-50%, 7px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll { animation: none; }
+}
+
+/* ── 背景层：固定图 + 暗罩（照搬参考站做法）── */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* 没有背景图时用深色渐变兜底 */
+  background-color: #1c2020;
+  background-image: linear-gradient(150deg, #2a3230 0%, #1a1f1e 55%, #101413 100%);
+}
+.hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* 移动端 */
+@media (max-width: 640px) {
+  .hero-lines { font-size: clamp(34px, 11vw, 52px); }
+  .hero-speeder-wrap {
+    transform: scale(0.72);
+    margin-top: 28px;
+  }
+  .hero-scroll { bottom: 90px; }
+}

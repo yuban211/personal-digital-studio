@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN" data-motion="{{ settings.get('motion_intensity','immersive') }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#faf7f2">
+  <meta name="description" content="{{ settings.get('tagline','个人数字工作室 · 独立项目与技术探索') }}">
+  <title>{% block title %}{{ settings.get('site_title','高冷的网友 208 · 个人数字工作室') }}{% endblock %}</title>
+
+  {# ★ 加载顺序：设计系统 → 原站样式 → 动效 → 组件 → 布局 → 开屏 #}
+  {#   设计系统必须最先，它定义 :root 变量，后面的文件都依赖它 #}
+  <link rel="stylesheet" href="{{ prefix }}/static/design-system.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/site.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/motion.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/studio-layout.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/studio-right.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/fullpage.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/modules.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/weather-scene.css">
+  <link rel="stylesheet" href="{{ prefix }}/static/splash.css">
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="{{ prefix }}/feed.xml">
+
+  <script defer src="{{ prefix }}/static/motion.js"></script>
+  <script defer src="{{ prefix }}/static/modules.js"></script>
+  <script defer src="{{ prefix }}/static/weather-scene.js"></script>
+  <script defer src="{{ prefix }}/static/splash.js"></script>
+  <script defer src="{{ prefix }}/static/hero-screen.js"></script>
+  <script defer src="{{ prefix }}/static/album-slider.js"></script>
+  <script defer src="{{ prefix }}/static/fullpage.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+<a class="skip-link" href="#main">跳到正文</a>
+
+<header class="site-header">
+  <a class="brand" href="{{ prefix }}/" aria-label="回到首页">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" fill="none" focusable="false">
+        <rect x="3" y="3" width="26" height="26" rx="2" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M11 9v14M11 16h10M21 9v14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="27" cy="5" r="2" fill="currentColor" stroke="none"/>
+      </svg>
+    </span>
+    <span>
+      {{ settings.get('signature','高冷的网友 208') }}
+      <small>INDEPENDENT DIGITAL STUDIO</small>
+    </span>
+  </a>
+  <nav class="main-nav" aria-label="主导航">
+    <a href="{{ prefix }}/projects">项目</a>
+    <a href="{{ prefix }}/blog">日志</a>
+    <a href="{{ prefix }}/now">现在</a>
+    <a href="{{ prefix }}/about">关于</a>
+  </nav>
+  <button class="menu-toggle" aria-label="打开导航" aria-expanded="false">
+    <span></span><span></span>
+  </button>
+</header>
+
+<main id="main">{% block content %}{% endblock %}</main>
+
+{% block footer %}
+<footer class="site-footer">
+  <div>
+    <span class="footer-mark">H.</span>
+    <p>让想法有迹可循，让作品持续生长。</p>
+  </div>
+  <div class="footer-meta">
+    <span>© 2026 {{ settings.get('signature','高冷的网友 208') }}</span>
+    <a href="{{ prefix }}/feed.xml">RSS ↗</a>
+    <a href="{{ prefix }}/admin/login">后台</a>
+  </div>
+</footer>
+{% endblock %}
+
+<div class="scroll-progress" aria-hidden="true"></div>
+</body></html>

@@ -1,0 +1,141 @@
+/* ═══════════════════════════════════════════════════════════════
+   全局设计系统 —— 移植自参考站
+   ─────────────────────────────────────────────────────────────────
+   核心设计特征（全部照搬）：
+     - 底色 #FAF7F2（暖米白，不是纯白）
+     - 强调黄 #FFE221
+     - 主文字近黑 #2C2C2C
+     - user-select: none（全站禁止选中）
+     - 滚动条 6px，青色 rgba(0,243,255,.25)
+     - 字体：优设标题黑（标题）/ SmileySans（正文）
+     - dvh 而非 vh（移动端不出现缝隙）
+     - 路由过渡 0.28s opacity + translateY
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* 参考站的调色板 */
+  --paper: #faf7f2;
+  --paper-2: #f4f0e8;
+  --ink: #2c2c2c;
+  --ink-soft: #5c5549;
+  --ink-dim: rgba(44, 44, 44, 0.45);
+  --accent-yellow: #ffe221;
+  --accent-red: #a82824;
+  --line: rgba(44, 44, 44, 0.12);
+
+  /* 动效令牌 */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --dur-micro: 160ms;
+  --dur-state: 280ms;
+  --dur-reveal: 620ms;
+
+  /* 字体栈：优先本机可能有的中文黑体 */
+  --font-title: 'YouSheBiaoTiHei', '优设标题黑', 'SmileySans', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+  --serif: 'Songti SC', 'SimSun', Georgia, serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html {
+  background-color: var(--paper);
+  /* 平滑滚动 */
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--paper);
+  /* ★ 用 dvh 不用 vh：移动端 vh 比可视区高，会多出可拖动的缝隙 */
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--font-body);
+  color: var(--ink);
+  /* 参考站的光标规范：默认箭头，可交互元素 pointer */
+  cursor: default;
+  overflow-x: hidden;
+}
+
+a,
+button,
+[role='button'],
+input[type='submit'],
+select,
+summary {
+  cursor: pointer;
+}
+
+/* 允许选中：文章正文、代码块、表单输入 */
+.prose,
+.prose *,
+pre,
+code,
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: auto;
+}
+input,
+textarea {
+  cursor: text;
+}
+
+/* 滚动条（照搬参考站：6px，青色） */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.25);
+  border-radius: 3px;
+  transition: background-color var(--dur-state) ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 243, 255, 0.45);
+}
+
+/* 焦点可见（无障碍，参考站缺这块，我补上） */
+:focus-visible {
+  outline: 2px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* 图片默认不拖拽 */
+img {
+  -webkit-user-drag: none;
+  display: block;
+  max-width: 100%;
+}
+
+/* 减少动效：全局关掉动画与平滑滚动 */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

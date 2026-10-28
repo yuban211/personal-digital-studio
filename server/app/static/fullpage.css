@@ -1,0 +1,197 @@
+/* ═══════════════════════════════════════════════════════════════
+   纵向分屏翻页 —— 复刻 Swiper vertical fullpage 的行为
+   ─────────────────────────────────────────────────────────────────
+   为什么不用 Swiper：
+     CDN 全部不可达（jsdelivr / unpkg / cdnjs / npmmirror 均失败），
+     自己托管又拿不到文件。所以用原生实现它的核心行为。
+
+   复刻的关键行为（对齐 Swiper 的配置）：
+     direction: 'vertical'    → 纵向
+     speed: 600               → 我调成 700ms，配 cubic-bezier(.77,0,.175,1)
+     mousewheel.forceToAxis   → 只响应纵向滚动
+     mousewheel.releaseOnEdges → ★ 关键：内层内容滚到边界才翻页
+     noSwipingClass           → 内层可滚动区不触发翻页
+
+   ★ 降级策略（重要）：
+     默认 CSS 是「普通滚动」。只有 JS 成功执行、加上 .fp-enabled 类，
+     才切换成满屏锁定模式。JS 失败 = 正常滚动 = 内容仍可访问。
+     减少动效时也不启用。
+
+   移动端：内层用原生 overflow 滚动，手感与系统一致。
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 默认态：普通文档流（JS 未启用时）── */
+.fp-viewport {
+  position: relative;
+  width: 100%;
+}
+
+.fp-track {
+  display: block;
+}
+
+.fp-slide {
+  position: relative;
+  width: 100%;
+}
+
+.fp-slide-hero {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.fp-scroll {
+  /* 默认态：让内容自然展开，不锁高度 */
+  width: 100%;
+}
+
+/* ══ 启用态：JS 加上 .fp-enabled 后的满屏模式 ══ */
+.fp-enabled .fp-viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  /* 顶栏高度由 JS 通过 CSS 变量注入 */
+  height: 100vh;
+  height: 100dvh;
+}
+
+.fp-enabled .fp-track {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  /* 与 Swiper speed:600 同源缓动 */
+  transition: transform 700ms cubic-bezier(0.77, 0, 0.175, 1);
+  will-change: transform;
+}
+
+.fp-enabled .fp-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 内层滚动区：占满整屏，自己接管滚动 */
+.fp-enabled .fp-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* 阻止滚动链传到外层（否则会带动页面） */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* 内层滚动条样式（沿用全局 6px 青色） */
+.fp-enabled .fp-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.fp-enabled .fp-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.25);
+  border-radius: 3px;
+}
+
+/* 翻页过渡期间禁用指针事件，防止误触 */
+.fp-enabled .fp-track.is-moving {
+  pointer-events: none;
+}
+
+/* ── 侧边指示点 ── */
+.fp-dots {
+  position: fixed;
+  right: clamp(14px, 2.4vw, 34px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 默认隐藏，启用后才显示 */
+  display: none;
+}
+
+.fp-enabled .fp-dots {
+  display: flex;
+}
+
+.fp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(44, 44, 44, 0.28);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color 280ms ease,
+    border-color 280ms ease,
+    transform 280ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.fp-dot:hover {
+  border-color: rgba(44, 44, 44, 0.6);
+  transform: scale(1.2);
+}
+
+.fp-dot.is-active {
+  background: #ffe221;
+  border-color: #ffe221;
+  transform: scale(1.25);
+}
+
+/* Hero 屏是深色底，指示点用白色；内容屏用深色 */
+.fp-dot[data-theme='dark'] {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.fp-dot[data-theme='dark'].is-active {
+  background: #ffe221;
+  border-color: #ffe221;
+}
+
+.fp-dot:focus-visible {
+  outline: 2px solid #ffe221;
+  outline-offset: 3px;
+}
+
+/* 移动端指示点缩小 */
+@media (max-width: 640px) {
+  .fp-dots {
+    right: 10px;
+    gap: 9px;
+  }
+  .fp-dot {
+    width: 7px;
+    height: 7px;
+  }
+}
+
+/* ══ 减少动效：不启用满屏锁定，回到普通滚动 ══ */
+@media (prefers-reduced-motion: reduce) {
+  .fp-enabled .fp-viewport {
+    position: relative;
+    inset: auto;
+    overflow: visible;
+    height: auto;
+  }
+  .fp-enabled .fp-track {
+    transition: none;
+    transform: none !important;
+    height: auto;
+  }
+  .fp-enabled .fp-slide {
+    flex: 0 0 auto;
+    height: auto;
+    overflow: visible;
+  }
+  .fp-enabled .fp-slide-hero {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .fp-enabled .fp-scroll {
+    height: auto;
+    overflow: visible;
+  }
+  .fp-enabled .fp-dots {
+    display: none;
+  }
+}

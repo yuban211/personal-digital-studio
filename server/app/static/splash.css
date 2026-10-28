@@ -1,0 +1,191 @@
+/* ═══════════════════════════════════════════════════════════════
+   开屏动画（Splash Screen）
+   ─────────────────────────────────────────────────────────────────
+   复刻自参考站（white66-7/blog 的 begin.vue），技术点：
+     1. 纸张纹理背景：内联 SVG feTurbulence 噪点，不用图片
+     2. 书法字描边：stroke-dasharray + drawText 关键帧，
+        先「画」出轮廓再填色
+     3. 朱砂印章：从 scale(2.2) + blur 砸下来，带旋转回弹
+     4. 菊花 Loader：12 瓣，负延迟错峰，形成旋转错觉
+     5. 退场：整屏 translateY(-100%) 上滑，缓动 (0.77,0,0.175,1)
+
+   播放策略（关键）：
+     - 首次访问：完整播放 ~2.2s
+     - 会话内再次进入：300ms 快速过（sessionStorage 记录）
+     - 减少动效：直接跳过，不显示
+   ═══════════════════════════════════════════════════════════════ */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #faf7f2;
+  /* 纸张纹理：内联噪点，零请求 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.1'/%3E%3C/svg%3E");
+  overflow: hidden;
+  transition:
+    transform 1.1s cubic-bezier(0.77, 0, 0.175, 1),
+    opacity 0.9s ease;
+  will-change: transform;
+}
+
+/* 顶部暖光，模拟纸面受光 */
+.splash::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60vh;
+  background: radial-gradient(ellipse at 50% -10%, rgba(255, 244, 224, 0.5), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.splash > * { position: relative; z-index: 1; }
+
+/* 快速模式（会话内二次进入） */
+.splash--quick {
+  transition:
+    transform 0.45s cubic-bezier(0.77, 0, 0.175, 1),
+    opacity 0.4s ease;
+}
+
+/* 退场上滑 */
+.splash--exit {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── 品牌区 ── */
+.splash-brand {
+  position: relative;
+  width: 90%;
+  max-width: 620px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.splash-mark {
+  width: 100%;
+  height: 120px;
+}
+
+/* 书法字描边：先画轮廓，再填色 */
+.splash-mark path,
+.splash-mark text {
+  stroke: #2c2c2c;
+  stroke-width: 1.2px;
+  fill: transparent;
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: splashDraw 2.2s ease-in-out forwards;
+}
+@keyframes splashDraw {
+  0%   { stroke-dashoffset: 600; fill: transparent; }
+  72%  { stroke-dashoffset: 0;   fill: transparent; }
+  100% { stroke-dashoffset: 0;   fill: #2c2c2c; }
+}
+
+/* ── 朱砂印章 ── */
+.splash-seal {
+  position: absolute;
+  right: 6%;
+  bottom: 6px;
+  width: 108px;
+  height: 34px;
+  border: 1.5px solid #a82824;
+  border-radius: 3px;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform-origin: center;
+  animation: splashStamp 0.45s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  animation-delay: 1.7s;
+  pointer-events: none;
+}
+.splash-seal-inner {
+  width: 100%;
+  height: 100%;
+  background-color: #a82824;
+  color: #faf7f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-family: 'SimSun', -apple-system, serif;
+  font-weight: 700;
+  border-radius: 1.5px;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+}
+.splash-seal-at { font-size: 11px; opacity: 0.85; }
+.splash-seal-text { font-size: 12px; letter-spacing: 0.5px; }
+
+@keyframes splashStamp {
+  0%   { opacity: 0; transform: scale(2.2) rotate(14deg); filter: blur(2px); }
+  75%  { opacity: 1; transform: scale(0.94) rotate(-6deg); filter: blur(0); }
+  100% { opacity: 0.92; transform: scale(1) rotate(-4deg); }
+}
+
+/* ── 菊花 Loader（12 瓣） ── */
+.splash-loader {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 14px;
+}
+.splash-loader div {
+  width: 7%;
+  height: 22%;
+  background: #5c5549;
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  opacity: 0;
+  border-radius: 50px;
+  animation: splashFade 1.1s linear infinite;
+}
+@keyframes splashFade {
+  from { opacity: 0.9; }
+  to   { opacity: 0.12; }
+}
+.splash-loader .b1  { transform: rotate(0deg)   translate(0, -130%); animation-delay: 0s; }
+.splash-loader .b2  { transform: rotate(30deg)  translate(0, -130%); animation-delay: -1.008s; }
+.splash-loader .b3  { transform: rotate(60deg)  translate(0, -130%); animation-delay: -0.916s; }
+.splash-loader .b4  { transform: rotate(90deg)  translate(0, -130%); animation-delay: -0.825s; }
+.splash-loader .b5  { transform: rotate(120deg) translate(0, -130%); animation-delay: -0.733s; }
+.splash-loader .b6  { transform: rotate(150deg) translate(0, -130%); animation-delay: -0.641s; }
+.splash-loader .b7  { transform: rotate(180deg) translate(0, -130%); animation-delay: -0.55s; }
+.splash-loader .b8  { transform: rotate(210deg) translate(0, -130%); animation-delay: -0.458s; }
+.splash-loader .b9  { transform: rotate(240deg) translate(0, -130%); animation-delay: -0.366s; }
+.splash-loader .b10 { transform: rotate(270deg) translate(0, -130%); animation-delay: -0.275s; }
+.splash-loader .b11 { transform: rotate(300deg) translate(0, -130%); animation-delay: -0.183s; }
+.splash-loader .b12 { transform: rotate(330deg) translate(0, -130%); animation-delay: -0.091s; }
+
+.splash-caption {
+  font: 400 10px/1 var(--mono, ui-monospace, monospace);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8a8578;
+  opacity: 0;
+  animation: splashCaptionIn 0.6s ease 0.9s forwards;
+}
+@keyframes splashCaptionIn {
+  to { opacity: 1; }
+}
+
+/* ── 无障碍：减少动效时直接不显示开屏 ── */
+@media (prefers-reduced-motion: reduce) {
+  .splash { display: none !important; }
+}
+
+/* 站点设为 still 时也不显示 */
+html[data-motion="still"] .splash { display: none !important; }

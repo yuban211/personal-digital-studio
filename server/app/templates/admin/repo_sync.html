@@ -1,0 +1,128 @@
+{% extends 'base.html' %}{% block title %}仓库同步 — {{ settings.get('signature') }}{% endblock %}{% block content %}
+<section class="admin-wrap wrap">
+  <div class="admin-top">
+    <div>
+      <p class="eyebrow">REPOSITORY SYNC</p>
+      <h1>仓库同步<span>.</span></h1>
+      <p>从 GitHub 仓库拉取 Markdown，批量更新站点上的项目和文章。</p>
+    </div>
+    <div class="admin-actions">
+      <a class="pill-link secondary" href="{{ prefix }}/admin/">← 返回总览</a>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="admin-section-head">
+      <div><p class="eyebrow">CONNECTION</p><h2>仓库连接</h2></div>
+    </div>
+    <div class="admin-table">
+      <form method="post" action="{{ prefix }}/admin/repo/sync" class="repo-form">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+
+        <label class="repo-field">
+          <span>仓库</span>
+          <input type="text" name="repo" value="{{ form.repo or '' }}" placeholder="用户名/仓库名" required>
+          <small>例如 yuban211/personal-digital-studio</small>
+        </label>
+
+        <label class="repo-field">
+          <span>分支</span>
+          <input type="text" name="branch" value="{{ form.branch or 'main' }}" placeholder="main" required>
+          <small>仓库默认分支，通常是 main 或 master</small>
+        </label>
+
+        <label class="repo-field repo-field-wide">
+          <span>访问令牌</span>
+          <input type="password" name="token" placeholder="{{ '已填写' if form.token_set else 'ghp_... 或 fine-grained token' }}" autocomplete="off">
+          <small>需要 <code>contents: read</code> 权限。令牌只用于这一次请求，不会保存。</small>
+        </label>
+
+        <div class="repo-field repo-field-wide">
+          <span>同步范围</span>
+          <label class="repo-check"><input type="radio" name="mode" value="check" {% if form.mode != 'apply' %}checked{% endif %}> 只检查，不修改</label>
+          <label class="repo-check"><input type="radio" name="mode" value="apply" {% if form.mode == 'apply' %}checked{% endif %}> 检查并同步到站点</label>
+        </div>
+
+        <div class="repo-actions">
+          <button class="button-dark" type="submit">{% if form.mode == 'apply' %}检查并同步{% else %}检查仓库{% endif %}</button>
+          <a class="pill-link secondary" href="{{ prefix }}/admin/">取消</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if result %}
+  <div class="admin-section">
+    <div class="admin-section-head">
+      <div><p class="eyebrow">RESULT</p><h2>{{ '同步结果' if result.applied else '检查结果' }}</h2></div>
+    </div>
+    <div class="repo-result {{ 'is-error' if result.error else '' }}">
+      {% if result.error %}
+        <p class="repo-error">{{ result.error }}</p>
+      {% else %}
+        <p class="repo-ok">仓库可达。找到 {{ result.projects|length }} 个项目、{{ result.posts|length }} 篇文章。</p>
+
+        {% if result.projects %}
+        <h3>项目</h3>
+        <ul class="repo-list">
+          {% for p in result.projects %}
+          <li><span class="repo-tag">{{ p.status }}</span>{{ p.title }}<small>{{ p.summary }}</small></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if result.posts %}
+        <h3>文章</h3>
+        <ul class="repo-list">
+          {% for p in result.posts %}
+          <li><span class="repo-tag">{{ '草稿' if not p.published else '已发布' }}</span>{{ p.title }}<small>{{ p.summary }}</small></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if result.skipped %}
+        <h3>跳过</h3>
+        <ul class="repo-list repo-list-warn">
+          {% for path, why in result.skipped %}
+          <li>{{ path }}<small>{{ why }}</small></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if result.applied %}
+        <p class="repo-applied">✓ 已写入站点：项目 {{ result.written_projects }} 条、文章 {{ result.written_posts }} 条。</p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="admin-section">
+    <div class="admin-section-head">
+      <div><p class="eyebrow">CONVENTION</p><h2>仓库里怎么放</h2></div>
+    </div>
+    <div class="admin-table">
+      <div class="repo-doc">
+        <p>把 Markdown 放进这两个目录，同步时会被自动识别：</p>
+        <pre><code>content/
+├── projects/
+│   └── garden-action.md
+└── posts/
+    └── my-note.md</code></pre>
+        <p>文件开头写 front-matter（可选，但推荐）：</p>
+        <pre><code>---
+title: 标题
+slug: url-friendly-slug
+summary: 一句话摘要
+status: 已上线
+tags: 标签1, 标签2
+date: 2026-01-01
+draft: false
+---</code></pre>
+        <p>没写 <code>summary</code> 时会取正文第一段；没写 <code>slug</code> 时会从标题生成。</p>
+        <p><strong>同步只读取 Markdown 文本，不会执行仓库里的任何代码。</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
