@@ -138,3 +138,70 @@ def test_filename_title_strips_date_prefix():
 def test_filename_title_strips_extension():
     from app.repo_sync import Path_title
     assert Path_title("content/posts/simple.md") == "simple"
+
+
+# ── 路径分类（同步时判定项目/文章）────────────────────────────
+
+
+def test_classify_content_paths():
+    from app.repo_sync import _classify
+    assert _classify("content/projects/a.md")[0] == "project"
+    assert _classify("content/posts/b.md")[0] == "post"
+    assert _classify("projects/c.md")[0] == "project"
+    assert _classify("posts/d.md")[0] == "post"
+
+
+def test_classify_relative_path_strips_prefix():
+    from app.repo_sync import _classify
+    kind, rel = _classify("content/posts/my-note.md")
+    assert kind == "post"
+    assert rel == "my-note.md"
+
+
+def test_classify_ignores_non_content():
+    from app.repo_sync import _classify
+    assert _classify("README.md")[0] is None
+    assert _classify("docs/guide.md")[0] is None
+    assert _classify("server/app/main.py")[0] is None
+
+
+def test_classify_nested_uses_last_segment():
+    """content/posts/ 里的 posts 才算数，目录名更深也要找对。"""
+    from app.repo_sync import _classify
+    assert _classify("a/b/projects/x.md")[0] == "project"
+    assert _classify("a/b/posts/x.md")[0] == "post"
+
+
+def test_classify_same_relative_name_dedupes():
+    """content/posts/x.md 与 posts/x.md 应判定为同一份内容。"""
+    from app.repo_sync import _classify
+    k1, r1 = _classify("content/posts/x.md")
+    k2, r2 = _classify("posts/x.md")
+    assert (k1, r1) == (k2, r2) == ("post", "x.md")
+
+
+def test_list_repo_files_uses_recursive():
+    """git/trees 默认不递归，必须显式加 recursive=1，否则子目录里的文件拿不到。"""
+    import inspect
+
+    from app.repo_sync import list_repo_files
+    src = inspect.getsource(list_repo_files)
+    assert "recursive=1" in src
+
+
+def test_fetch_raw_uses_contents_api():
+    """raw.githubusercontent.com 在国内常被重置，必须走 api.github.com。"""
+    import inspect
+
+    from app.repo_sync import fetch_raw
+    src = inspect.getsource(fetch_raw)
+    # 去掉 docstring 再看代码体，避免注释里的域名造成误判
+    code = src.split('"""')[0] + src.split('"""')[-1]
+    assert "raw.githubusercontent.com" not in code
+    assert "api.github.com" in code
+
+
+def test_repo_sync_imports_base64():
+    """base64 是 Contents API 解码所必需。"""
+    import app.repo_sync as m
+    assert hasattr(m, "base64")

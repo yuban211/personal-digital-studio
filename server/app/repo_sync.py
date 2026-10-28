@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import urllib.error
@@ -77,26 +78,55 @@ def _request(url: str, token: str, accept: str = "application/vnd.github+json") 
 
 
 def list_repo_files(repo: str, branch: str, token: str, path: str = "") -> list[dict]:
-    """列出仓库某个目录下的文件树。"""
+    """列出仓库某个目录下的所有文件。
+
+    注意：``git/trees`` API **默认不递归**，不加 ``recursive=1``
+    只会返回该目录下的直接子项（子目录表现为 tree 条目，不含文件）。
+    所以这里必须显式请求递归。
+    """
     url = f"https://api.github.com/repos/{repo}/git/trees/{urllib.parse.quote(branch)}"
     if path:
         url += f":{urllib.parse.quote(path)}"
+    url += "?recursive=1"
     data = json.loads(_request(url, token))
     if "tree" not in data:
         raise ValueError(f"仓库或分支不存在：{repo}@{branch}")
-    return [e for e in data["tree"] if e.get("type") == "blob"]
+    entries = [e for e in data["tree"] if e.get("type") == "blob"]
+    if data.get("truncated"):
+        # 仓库太大时 GitHub 会截断，此时应提示而不是静默漏内容
+        raise ValueError("仓库文件过多，GitHub 返回了截断的结果，请缩小目录范围")
+    return entries
 
 
 def fetch_raw(repo: str, branch: str, token: str, path: str) -> str:
-    """下载文件的原始内容。"""
+    """下载文件的原始内容。
+
+    走 **Contents API** 而不是 ``raw.githubusercontent.com``：
+    后者在国内网络环境下经常被重置连接（实测 WinError 10054），
+    而 ``api.github.com`` 稳定可达。Contents API 返回 base64，
+    这里解码后按 UTF-8 还原。
+    """
     url = (
-        f"https://raw.githubusercontent.com/{repo}/"
-        f"{urllib.parse.quote(branch)}/{urllib.parse.quote(path)}"
+        f"https://api.github.com/repos/{repo}/contents/"
+        f"{urllib.parse.quote(path)}?ref={urllib.parse.quote(branch)}"
     )
-    data = _request(url, token, accept="application/vnd.github.raw")
-    if len(data) > MAX_FILE_BYTES:
-        raise ValueError(f"文件过大（>{MAX_FILE_BYTES // 1024}KB）：{path}")
-    return data.decode("utf-8", "replace")
+    data = json.loads(_request(url, token))
+    if isinstance(data, list):
+        raise ValueError(f"路径指向目录而非文件：{path}")
+    if data.get("encoding") == "base64" and data.get("content"):
+        raw = base64.b64decode(data["content"])
+        if len(raw) > MAX_FILE_BYTES:
+            raise ValueError(f"文件过大（>{MAX_FILE_BYTES // 1024}KB）：{path}")
+        return raw.decode("utf-8", "replace")
+    # 超过 1MB 时 API 返回空 content，需要走 blobs 接口
+    if data.get("encoding") == "none" and data.get("sha"):
+        blob_url = f"https://api.github.com/repos/{repo}/git/blobs/{data['sha']}"
+        blob = json.loads(_request(blob_url, token))
+        raw = base64.b64decode(blob.get("content", ""))
+        if len(raw) > MAX_FILE_BYTES:
+            raise ValueError(f"文件过大（>{MAX_FILE_BYTES // 1024}KB）：{path}")
+        return raw.decode("utf-8", "replace")
+    raise ValueError(f"无法读取文件内容：{path}")
 
 
 def parse_front_matter(text: str) -> tuple[dict[str, str], str]:
@@ -187,6 +217,28 @@ def Path_title(path: str) -> str:
 #: 内容目录候选（按优先级）
 _CONTENT_ROOTS = ("content", "", "docs/content")
 
+#: 判定内容类型的目录名
+_PROJECT_DIR = "projects"
+_POST_DIR = "posts"
+
+
+def _classify(path: str) -> tuple[str | None, str]:
+    """判定文件属于项目还是文章。
+
+    返回 ``(kind, 相对路径)``；``kind`` 为 None 表示不是内容文件。
+
+    只认**最后一个** ``projects/`` 或 ``posts/`` 段之后的文件名，
+    避免 ``content/posts/x.md`` 和 ``posts/x.md`` 被当成两个不同文件。
+    """
+    parts = [p for p in path.split("/") if p]
+    for i in range(len(parts) - 1, -1, -1):
+        seg = parts[i].lower()
+        if seg == _PROJECT_DIR:
+            return "project", "/".join(parts[i + 1 :])
+        if seg == _POST_DIR:
+            return "post", "/".join(parts[i + 1 :])
+    return None, path
+
 
 def collect_content(repo: str, branch: str, token: str) -> tuple[
     list[dict[str, Any]], list[dict[str, Any]], list[tuple[str, str]], list[str]
@@ -200,6 +252,9 @@ def collect_content(repo: str, branch: str, token: str) -> tuple[
     skipped: list[tuple[str, str]] = []
     seen: set[str] = set()
 
+    # 用相对路径去重：content/posts/x.md 与 posts/x.md 视为同一个
+    by_rel: dict[tuple[str, str], str] = {}
+
     for root in _CONTENT_ROOTS:
         try:
             entries = list_repo_files(repo, branch, token, root)
@@ -210,43 +265,52 @@ def collect_content(repo: str, branch: str, token: str) -> tuple[
 
         for e in entries:
             path = e.get("path", "")
-            low = path.lower()
-            if not low.endswith(".md"):
+            if not path.lower().endswith(".md"):
                 continue
             seen.add(path)
 
-            # 目录判定：projects/ 或 posts/
-            if "/projects/" in f"/{low}" or low.startswith("projects/"):
-                kind = "project"
-            elif "/posts/" in f"/{low}" or low.startswith("posts/"):
-                kind = "post"
-            else:
-                skipped.append((path, "不在 projects/ 或 posts/ 目录下"))
+            # git/trees 的 :path 形式返回**相对该目录**的路径，
+            # 取文件时必须补回前缀，否则 Contents API 会 404。
+            full_path = f"{root}/{path}" if root else path
+
+            kind, rel = _classify(full_path)
+            if kind is None:
+                skipped.append((full_path, "不在 projects/ 或 posts/ 目录下"))
+                continue
+
+            # 同一份内容在不同 root 下路径不同，用 (kind, rel) 去重
+            key = (kind, rel)
+            if key in by_rel:
+                continue
+            by_rel[key] = full_path
+
+            try:
+                text = fetch_raw(repo, branch, token, full_path)
+            except Exception as exc:
+                skipped.append((full_path, f"下载失败：{exc}"))
                 continue
 
             try:
-                text = fetch_raw(repo, branch, token, path)
+                item = (
+                    parse_project(text, full_path)
+                    if kind == "project"
+                    else parse_post(text, full_path)
+                )
             except Exception as exc:
-                skipped.append((path, f"下载失败：{exc}"))
-                continue
-
-            try:
-                item = parse_project(text, path) if kind == "project" else parse_post(text, path)
-            except Exception as exc:
-                skipped.append((path, f"解析失败：{exc}"))
+                skipped.append((full_path, f"解析失败：{exc}"))
                 continue
 
             if not item.get("title"):
-                skipped.append((path, "缺少标题"))
+                skipped.append((full_path, "缺少标题"))
                 continue
 
             (projects if kind == "project" else posts).append(item)
 
         # 一个 root 找到内容就停，避免根目录重复收集
-        if projects or posts:
+        if by_rel:
             break
 
-    # 仓库里其他 Markdown（未采用）
+    # 仓库里其他 Markdown（未采用）。根目录查询返回的是完整路径。
     try:
         all_md = [
             e["path"] for e in list_repo_files(repo, branch, token, "")
@@ -254,7 +318,9 @@ def collect_content(repo: str, branch: str, token: str) -> tuple[
         ]
     except Exception:
         all_md = []
-    unused = sorted(p for p in all_md if p not in seen)
+    # 已采用的文件（含带 root 前缀的形式）不算未采用
+    adopted = set(by_rel.values()) | {p for p in seen if not _classify(p)[0]}
+    unused = sorted(p for p in all_md if p not in adopted)
 
     return projects, posts, skipped, unused
 
