@@ -2,12 +2,60 @@
 
 把「个人数字工作室」做成浏览器新标签页：一屏之内看到天气、音乐、作品截图、项目和日志。
 
+**仓库地址**：https://github.com/yuban211/personal-digital-studio
+**线上站点**：https://yuban211.duckdns.org:59684/studio/
+
+---
+
+## 内容从哪来
+
+站点的项目和文章都存在 SQLite 里，同时在 `content/` 目录留了一份 Markdown 源文件。
+
+**后台可以反过来从 GitHub 拉取**：
+
+> 后台 → 仓库同步 → 填仓库名和分支 → 「检查并同步到站点」
+
+同步按 slug 匹配：仓库里有库里没有就新增，两边都有就更新（**仓库为准**），
+库里独有���**不会删**——避免一次误操作清空全部内容。
+
+仓库里这样放：
+
+```
+content/
+├── projects/
+│   └── garden-action.md
+└── posts/
+    └── my-note.md
+```
+
+Markdown 文件开头可以写 front-matter：
+
+```markdown
+---
+title: 标题
+slug: url-friendly-slug
+summary: 一句话摘要
+status: 已上线
+tags: 标签1, 标签2
+date: 2026-01-01
+draft: false
+---
+```
+
+没写 `summary` 就取正文第一段，没写 `slug` 就从标题生成。
+
+**同步只读取 Markdown 文本，不会执行仓库里的任何代码。**​
+
 ---
 
 ## 目录结构
 
 ```
 浏览器首页/
+├── content/                   ★ 仓库同步的内容源（Markdown）
+│   ├── projects/              项目，每个文件一个项目
+│   └── posts/                 日志，每个文件一篇文章
+│
 ├── browser-extension/        浏览器首页扩展（Chrome Manifest V3）
 │   ├── manifest.json         MV3 清单，chrome_url_overrides.newtab
 │   ├── newtab.html           页面骨架
@@ -19,6 +67,8 @@
 │   ├── app/
 │   │   ├── main.py           路由入口
 │   │   ├── newtab_api.py     ★ 扩展专用只读 JSON 接口
+│   │   ├── repo_sync.py      ★ 从 GitHub 拉取 Markdown 并解析
+│   │   ├── repo_routes.py    ★ 后台同步路由与数据库写入
 │   │   ├── cache_layer.py    分层缓存
 │   │   ├── weather_mod.py    天气适配层
 │   │   ├── security.py       scrypt 密码 + HMAC 会话 + CSRF
