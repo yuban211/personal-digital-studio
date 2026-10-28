@@ -11,7 +11,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 INSTANCE = Path(__file__).resolve().parent.parent / "instance"
-ADMIN_FILE = INSTANCE / "admin.json"
+#: 管理员凭据文件。可用 STUDIO_ADMIN_FILE 覆盖 —— 部署时 instance/ 目录
+#: 可能只读（容器里归 root），需要一个可写位置来更新凭据。
+ADMIN_FILE = Path(os.getenv("STUDIO_ADMIN_FILE") or (INSTANCE / "admin.json"))
 
 
 def secret_key() -> bytes:
