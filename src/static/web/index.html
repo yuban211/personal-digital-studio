@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>起始页</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶栏：时间 + 天气 -->
+  <header class="topbar">
+    <div class="greeting" id="greeting">你好</div>
+    <div class="clock" id="clock">--:--</div>
+    <div class="weather" id="weather" hidden></div>
+    <button class="icon-btn" id="btnSettings" aria-label="设置" title="设置">⚙</button>
+  </header>
+
+  <!-- 搜索（核心） -->
+  <main class="stage">
+    <form class="search" id="searchForm" autocomplete="off">
+      <input class="search-input" id="searchInput" type="text"
+             placeholder="搜索，或输入网址" aria-label="搜索框"
+             autofocus spellcheck="false">
+      <button class="search-btn" type="submit" aria-label="搜索">→</button>
+    </form>
+    <div class="hint" id="hint">回车搜索 · =1+2 可计算</div>
+
+    <!-- 快捷入口 -->
+    <section class="section" id="bmSection">
+      <h2 class="section-title">快捷入口</h2>
+      <div class="bookmarks" id="bookmarks"></div>
+    </section>
+
+    <!-- 待办 -->
+    <section class="section" id="todoSection">
+      <h2 class="section-title">待办</h2>
+      <form class="todo-form" id="todoForm">
+        <input class="todo-input" id="todoInput" type="text"
+               placeholder="添加一条待办，回车确认" aria-label="待办输入">
+      </form>
+      <ul class="todo-list" id="todoList"></ul>
+    </section>
+  </main>
+
+  <!-- 设置面板 -->
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer-inner">
+      <div class="drawer-head">
+        <h2>设置</h2>
+        <button class="icon-btn" id="btnClose" aria-label="关闭">✕</button>
+      </div>
+
+      <label class="field">
+        <span>搜索引擎</span>
+        <select id="setEngine"></select>
+      </label>
+
+      <label class="field">
+        <span>自定义引擎 URL（用 {} 占位关键词）</span>
+        <input id="setCustomUrl" type="text" placeholder="留空则使用上方预设">
+      </label>
+
+      <label class="field check">
+        <input id="setNewTab" type="checkbox">
+        <span>搜索结果在新标签打开</span>
+      </label>
+
+      <label class="field check">
+        <input id="setWeather" type="checkbox">
+        <span>显示天气</span>
+      </label>
+
+      <label class="field">
+        <span>天气城市（留空自动）</span>
+        <input id="setCity" type="text" placeholder="例如 Shanghai">
+      </label>
+
+      <label class="field">
+        <span>服务器 API（可选，留空则不同步）</span>
+        <input id="setApi" type="text" placeholder="https://...">
+      </label>
+
+      <div class="drawer-actions">
+        <button class="btn" id="btnExport">导出配置</button>
+        <button class="btn" id="btnImport">导入配置</button>
+        <button class="btn danger" id="btnReset">恢复默认</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="search.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
