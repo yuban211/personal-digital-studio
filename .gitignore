@@ -20,3 +20,9 @@ scripts/startpage.env
 
 # 交付文档含真实密钥，禁止提交
 docs/交付与运维手册.md
+docs/站点与密钥速查.md
+
+# 兜底：docs 下任何含"密钥/速查/密码"字样的文档一律不入库
+docs/*密钥*
+docs/*速查*
+docs/*密码*
