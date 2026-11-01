@@ -7,25 +7,54 @@
 #   结果就是「续期链路从未被验证过」，风险一路留到临期那几天才暴露。
 #   本脚本绕过该门槛，强制走一次完整 DNS-01，签完立刻部署并 reload Caddy。
 #
-# 代价：消耗 1 次 Let's Encrypt 签发配额（上限 5 次/周）。偶尔验证一次无妨。
+# ★ 2026-11-02 三个必须的修正（首次跑全被这三条坑住）：
+#   1) dash 兼容：acme.sh 的 shebang 是 `#!/usr/bin/env sh` → 容器里是 dash。
+#      acme.sh 第 349/383/416/429 行的日志级别判断写作
+#        [ "${LOG_LEVEL:-$DEFAULT_LOG_LEVEL}" -ge "$LOG_LEVEL_1" ]
+#      把 LOG_LEVEL 当**数字**用；而容器环境里有 LOG_LEVEL=INFO（服务常用名），
+#      于是每次调日志函数都刷 `Illegal number: INFO`。
+#      → 调用前 unset LOG_LEVEL / SYS_LOG / DEBUG，并改用 bash 显式解释。
+#   2) DNS 预检：acme.sh 写完 TXT 后会去公共 DoH 端点核对，容器到那些端点
+#      TLS 握手失败（curl error 35），预检卡死。→ 用 --dnssleep 30 跳过预检，
+#      改为定时等传播（DuckDNS 是权威 NS，写入即生效，30 秒足够）。
+#   3) 幂等：若已存在比线上更新的签发产物，只做部署，不重复消耗配额。
 #
-# 幂等：可反复执行，每次都会重新签（因为带 --force）。
 # 用法：bash /workspace/issue-now.sh
 
 set -u
+
+# ── curl 超时垫片（2026-11-02 加，P0）──────────────────────────────────────
+#   acme.sh 的 _get() 把 timeout 作为**第三个**参数，而 dns_duckdns 插件只传了
+#   url，于是 DuckDNS 那次请求没有任何 --connect-timeout / --max-time，
+#   实测挂了 132 秒。若哪天它彻底不返回，守护进程会被永久挂住。
+#   垫片在 PATH 层注入 connect 15s / max 240s；调用方显式传的超时仍优先。
+if [ -x /workspace/.bin/curl ]; then
+  PATH="/workspace/.bin:$PATH"; export PATH
+fi
 
 ACME_HOME="/workspace/.acme.sh"
 CERT_DIR="/workspace/certs"
 CRED="/workspace/acme-cred.env"
 DOMAIN_FULL="yuban211.duckdns.org"
+DNSSLEEP="${DNSSLEEP:-30}"
 
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 
-log "══════ 强制签发 $(date '+%Y-%m-%d %H:%M:%S %Z') ══════"
+log "══════ 签发 / 部署 $(date '+%Y-%m-%d %H:%M:%S %Z') ══════"
+
+# ── 0) 环境诊断：把污染变量摆出来，别让它们再隐形 ─────────────────────────
+for _v in LOG_LEVEL SYS_LOG DEBUG; do
+  eval "_val=\${$_v+set}"
+  if [ "$_val" = "set" ]; then
+    eval "_cur=\$$_v"
+    log "环境变量 $_v=$_cur  ← 会干扰 acme.sh，本次调用将屏蔽"
+  fi
+done
+unset LOG_LEVEL SYS_LOG DEBUG
 
 # ── 1) 凭据 ───────────────────────────────────────────────────────────────
 if [ ! -s "$CRED" ]; then
-  log "!! 缺少 $CRED —— 先建好凭据文件再跑"
+  log "!! 缺少 $CRED"
   exit 1
 fi
 set -a
@@ -38,7 +67,6 @@ if [ -z "${DuckDNS_Token:-}" ]; then
 fi
 log "凭据已载入（token ${#DuckDNS_Token} 字符）"
 
-# 域名：允许写注册名或全名
 if [ -n "${DuckDNS_Domain:-}" ]; then
   case "$DuckDNS_Domain" in
     *.duckdns.org) DOMAIN_FULL="$DuckDNS_Domain" ;;
@@ -48,40 +76,54 @@ fi
 log "目标域名：$DOMAIN_FULL"
 
 # ── 2) 前置 ───────────────────────────────────────────────────────────────
-if [ ! -x "$ACME_HOME/acme.sh" ]; then
-  log "!! acme.sh 不可执行：$ACME_HOME/acme.sh（先跑 prefetch-acme.sh）"
-  exit 1
-fi
-if [ ! -s "$ACME_HOME/dnsapi/dns_duckdns.sh" ]; then
-  log "!! 缺少 dns_duckdns.sh 插件（先跑 prefetch-acme.sh）"
-  exit 1
-fi
-_before_fp=$(openssl x509 -in "$CERT_DIR/cert.pem" -noout -fingerprint -sha256 2>/dev/null)
-log "当前证书指纹：${_before_fp:-无}"
+[ -x "$ACME_HOME/acme.sh" ] || { log "!! acme.sh 缺失，先跑 prefetch-acme.sh"; exit 1; }
+[ -s "$ACME_HOME/dnsapi/dns_duckdns.sh" ] || { log "!! 缺 dns_duckdns.sh，先跑 prefetch-acme.sh"; exit 1; }
 
-# ── 3) 强制签发（DNS-01）──────────────────────────────────────────────────
-#   注意：--force 在这个语境下是必要的 —— 我们要的正是「不等到期，立刻签一次」。
-#   它和「每日守护里不该出现 --force」并不矛盾：守护要幂等，这里是有意为之。
-log "开始签发（DNS-01，通常 20~60 秒）..."
-if ! "$ACME_HOME/acme.sh" --issue \
-      --home "$ACME_HOME" \
-      --server letsencrypt \
-      --dns dns_duckdns \
-      -d "$DOMAIN_FULL" \
-      --keylength 2048 \
-      --force \
-      --log "$ACME_HOME/acme.log"; then
-  log "!! 签发失败。下面是 acme.log 末尾（关键行常含 TXT 校验或速率限制提示）："
-  tail -25 "$ACME_HOME/acme.log" 2>/dev/null | sed 's/^/    /'
-  log "!! 已签发失败但**没有动线上证书** —— 站点继续用旧证书，不受影响"
-  exit 1
-fi
-log "签发成功"
-
-# ── 4) 部署到 certs/ ─────────────────────────────────────────────────────
 SRC="$ACME_HOME/$DOMAIN_FULL"
+_before_fp=$(openssl x509 -in "$CERT_DIR/cert.pem" -noout -fingerprint -sha256 2>/dev/null)
+log "线上证书指纹：${_before_fp:-无}"
+
+# ── 3) 上次是否其实已经签成？避免重复消耗配额 ─────────────────────────────
+SKIP_ISSUE=0
+if [ -s "$SRC/fullchain.cer" ]; then
+  log "发现已有签发产物：$SRC/fullchain.cer"
+  openssl x509 -in "$SRC/fullchain.cer" -noout -dates 2>/dev/null | sed 's/^/    /'
+  log "产物时间：$(date -r "$SRC/fullchain.cer" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 未知)"
+  _src_end=$(openssl x509 -in "$SRC/fullchain.cer" -noout -enddate 2>/dev/null | cut -d= -f2)
+  _cur_end=$(openssl x509 -in "$CERT_DIR/cert.pem" -noout -enddate 2>/dev/null | cut -d= -f2)
+  _src_s=$(date -d "$_src_end" +%s 2>/dev/null || echo 0)
+  _cur_s=$(date -d "$_cur_end" +%s 2>/dev/null || echo 0)
+  if [ "${_src_s:-0}" -gt "${_cur_s:-0}" ]; then
+    log "该产物比线上证书更新 → 跳过签发，直接部署（省一次配额）"
+    SKIP_ISSUE=1
+  fi
+fi
+
+# ── 4) 签发 ───────────────────────────────────────────────────────────────
+if [ "$SKIP_ISSUE" = "1" ]; then
+  :
+else
+  log "开始签发（DNS-01 + dnssleep ${DNSSLEEP}s，预计 1~2 分钟）..."
+  if ! env -u LOG_LEVEL -u SYS_LOG -u DEBUG bash "$ACME_HOME/acme.sh" --issue \
+        --home "$ACME_HOME" \
+        --server letsencrypt \
+        --dns dns_duckdns \
+        -d "$DOMAIN_FULL" \
+        --keylength 2048 \
+        --force \
+        --dnssleep "$DNSSLEEP" \
+        --log "$ACME_HOME/acme.log"; then
+    log "!! 签发失败。acme.log 末尾："
+    tail -25 "$ACME_HOME/acme.log" 2>/dev/null | sed 's/^/    /'
+    log "!! 未改动线上证书 —— 站点继续用旧证书，不受影响"
+    exit 1
+  fi
+  log "签发成功"
+fi
+
+# ── 5) 部署 ───────────────────────────────────────────────────────────────
 if [ ! -s "$SRC/fullchain.cer" ] || [ ! -s "$SRC/$DOMAIN_FULL.key" ]; then
-  log "!! 产物不全，检查 $SRC"
+  log "!! 产物不全，列目录："
   ls -l "$SRC" 2>/dev/null | sed 's/^/    /'
   exit 1
 fi
@@ -92,25 +134,25 @@ chmod 644 "$CERT_DIR/cert.pem" 2>/dev/null
 chmod 600 "$CERT_DIR/key.pem" 2>/dev/null
 
 _after_fp=$(openssl x509 -in "$CERT_DIR/cert.pem" -noout -fingerprint -sha256 2>/dev/null)
-log "已部署。新证书："
+log "已部署到 $CERT_DIR："
 openssl x509 -in "$CERT_DIR/cert.pem" -noout -subject -issuer -dates 2>/dev/null | sed 's/^/    /'
-log "新指纹：${_after_fp:-读取失败}"
 
-# ── 5) 让 Caddy 真正用上 ──────────────────────────────────────────────────
+# ── 6) 让 Caddy 真正用上 ──────────────────────────────────────────────────
 if [ "$_before_fp" = "$_after_fp" ]; then
-  log "指纹未变（不该发生），跳过重载"
+  log "指纹未变，跳过重载"
 elif curl -s -m 3 -o /dev/null "http://127.0.0.1:2019/config/" 2>/dev/null; then
-  if ( cd /workspace && ./caddy reload --config Caddyfile ) >>/workspace/caddy.log 2>&1; then
+  # 必须带 --force：Caddy 的 reload 会比对配置差异，Caddyfile 文本没变时判定"无变化"
+  # 并跳过 TLS 模块，导致 certs/ 里已是新证书但内存里仍是旧的（2026-11-02 实测踩到）
+  if ( cd /workspace && ./caddy reload --config Caddyfile --force ) >>/workspace/caddy.log 2>&1; then
     log "Caddy 已重载 —— 新证书即时生效，无需重启容器"
   else
-    log "!! Caddy reload 失败，见 /workspace/caddy.log；重启容器后同样会生效"
+    log "!! Caddy reload 失败，见 /workspace/caddy.log；重启容器后同样生效"
   fi
 else
   log "Caddy admin API 未就绪，跳过重载（下次启动会读到新证书）"
 fi
 
-# ── 6) 收尾提示 ───────────────────────────────────────────────────────────
 log ""
-log "验证线上实际使用的证书（从容器内自测）："
+log "容器内自测线上实际证书："
 log "  echo | openssl s_client -connect 127.0.0.1:59684 -servername $DOMAIN_FULL 2>/dev/null | openssl x509 -noout -dates"
 log "完成。"
