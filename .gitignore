@@ -17,3 +17,6 @@ services/quant/data/
 
 # 含真实密钥的运行配置（模板见 scripts/startpage.env.example）
 scripts/startpage.env
+
+# 交付文档含真实密钥，禁止提交
+docs/交付与运维手册.md
