@@ -10,3 +10,4 @@ dist/
 services/market/data/
 services/market/config.env
 services/market/venv/
+services/quant/data/

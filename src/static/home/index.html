@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>起始页</title>
+<link rel="icon" href="home/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="home/home.css">
+</head>
+<body data-wallpaper="dawn">
+
+  <div class="wallpaper" id="wallpaper" aria-hidden="true"></div>
+  <div class="scrim" aria-hidden="true"></div>
+
+  <!-- ── 顶栏：左侧品牌，右侧工具 ── -->
+  <header class="topbar">
+    <div class="brand" id="brand" title="起始页">
+      <span class="brand-mark">◇</span>
+      <span class="brand-name" id="brandName">起始页</span>
+    </div>
+    <div class="topbar-tools">
+      <button class="round-btn" id="btnQuotes" type="button" title="行情与模拟实盘">行情</button>
+      <button class="round-btn" id="btnNote" type="button" title="便签">便签</button>
+      <button class="round-btn" id="btnSettings" type="button" title="设置（Ctrl+,）" aria-expanded="false">⚙</button>
+    </div>
+  </header>
+
+  <!-- ── 主舞台 ── -->
+  <main class="stage">
+    <section class="hero">
+      <div class="clock" id="clock">--:--</div>
+      <div class="dateline">
+        <span id="dateText">—</span>
+        <span class="dot">·</span>
+        <span id="lunarText">—</span>
+      </div>
+
+      <form class="search" id="searchForm" autocomplete="off" role="search">
+        <button class="engine" id="engineBtn" type="button" aria-haspopup="listbox" aria-expanded="false">
+          <span id="engineName">必应</span>
+          <span class="caret">▾</span>
+        </button>
+        <input class="search-input" id="searchInput" type="text" spellcheck="false"
+               placeholder="搜索，或输入网址" aria-label="搜索" autofocus>
+        <button class="go" id="goBtn" type="submit" aria-label="搜索">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M10 4a6 6 0 1 1-4.24 10.24l-3.2 3.2a1 1 0 1 1-1.42-1.42l3.2-3.2A6 6 0 0 1 10 4Zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="engine-menu" id="engineMenu" role="listbox" hidden></div>
+        <div class="suggest" id="suggest" hidden></div>
+      </form>
+
+      <p class="hintline" id="hintline">回车搜索 · 输入网址直达 · Shift+回车新标签打开</p>
+    </section>
+
+    <!-- ── 分类 ── -->
+    <nav class="cats" id="cats" aria-label="收藏分类"></nav>
+
+    <!-- ── 收藏网格 ── -->
+    <section class="grid-wrap">
+      <div class="grid" id="grid" aria-label="收藏"></div>
+      <p class="empty" id="empty" hidden>这个分类还没有收藏，点右下角「+」添加。</p>
+    </section>
+
+    <footer class="footline">
+      <span id="footStat">—</span>
+      <a href="quant/" id="quantLink" class="foot-link">行情 / 模拟实盘 →</a>
+    </footer>
+  </main>
+
+  <!-- ── 便签面板 ── -->
+  <aside class="note-panel" id="notePanel" hidden aria-label="便签">
+    <div class="note-head">
+      <strong>便签</strong>
+      <div class="note-actions">
+        <span class="note-saved" id="noteSaved">已保存</span>
+        <button class="icon-btn" id="btnNoteClose" type="button" aria-label="关闭">✕</button>
+      </div>
+    </div>
+    <textarea class="note-body" id="noteBody" placeholder="随手记点什么…（自动保存）"></textarea>
+  </aside>
+
+  <!-- ── 右键菜单 ── -->
+  <div class="ctx" id="ctx" hidden role="menu">
+    <button data-act="open" type="button">打开</button>
+    <button data-act="edit" type="button">编辑</button>
+    <button data-act="pin" type="button">置顶</button>
+    <button data-act="move" type="button">移动到分类…</button>
+    <hr>
+    <button data-act="delete" type="button" class="danger">删除</button>
+  </div>
+
+  <!-- ── 收藏编辑弹窗 ── -->
+  <dialog class="modal" id="bmModal">
+    <form method="dialog" class="modal-form" id="bmForm">
+      <h2 id="bmTitle">新增收藏</h2>
+      <label class="field">
+        <span>名称</span>
+        <input id="bmName" type="text" maxlength="60" placeholder="例如：GitHub" required>
+      </label>
+      <label class="field">
+        <span>网址</span>
+        <input id="bmUrl" type="text" maxlength="2000" placeholder="github.com 或 https://github.com" required>
+      </label>
+      <label class="field">
+        <span>分类</span>
+        <select id="bmCat"></select>
+      </label>
+      <label class="field">
+        <span>图标字符（可选）</span>
+        <input id="bmIcon" type="text" maxlength="2" placeholder="留空取名称首字">
+      </label>
+      <label class="field">
+        <span>备注（可选）</span>
+        <input id="bmNote" type="text" maxlength="200" placeholder="一句话说明">
+      </label>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="bmCancel">取消</button>
+        <button type="submit" class="btn primary" id="bmOk">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── 分类编辑弹窗 ── -->
+  <dialog class="modal" id="catModal">
+    <form method="dialog" class="modal-form" id="catForm">
+      <h2 id="catTitle">新增分类</h2>
+      <label class="field">
+        <span>名称</span>
+        <input id="catName" type="text" maxlength="30" placeholder="例如：工具" required>
+      </label>
+      <label class="field">
+        <span>标记字符（可选）</span>
+        <input id="catIcon" type="text" maxlength="2" placeholder="例如 ★">
+      </label>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" id="catCancel">取消</button>
+        <button type="submit" class="btn primary" id="catOk">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── 设置抽屉 ── -->
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer-mask" id="drawerMask"></div>
+    <div class="drawer-body" role="dialog" aria-modal="true" aria-label="设置">
+      <div class="drawer-head">
+        <strong>设置</strong>
+        <button class="icon-btn" id="btnDrawerClose" type="button" aria-label="关闭">✕</button>
+      </div>
+
+      <section class="group">
+        <h3>外观</h3>
+        <div class="wallpapers" id="wallpapers"></div>
+        <label class="btn ghost wide" for="wallUpload">上传本地图片作壁纸</label>
+        <input id="wallUpload" type="file" accept="image/*" hidden>
+        <div class="row">
+          <span class="row-label">背景模糊</span>
+          <input type="range" id="setBlur" min="0" max="20" step="1" value="0">
+          <output id="setBlurOut">0px</output>
+        </div>
+        <div class="row">
+          <span class="row-label">压暗</span>
+          <input type="range" id="setDim" min="0" max="70" step="5" value="20">
+          <output id="setDimOut">20%</output>
+        </div>
+      </section>
+
+      <section class="group">
+        <h3>搜索</h3>
+        <label class="field">
+          <span>默认引擎</span>
+          <select id="setEngine"></select>
+        </label>
+        <label class="field">
+          <span>自定义引擎（用 {} 占位关键词）</span>
+          <input id="setCustomEngine" type="text" placeholder="https://example.com/search?q={}">
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="setNewTab">
+          <span>默认在新标签打开</span>
+        </label>
+      </section>
+
+      <section class="group">
+        <h3>显示</h3>
+        <label class="switch"><input type="checkbox" id="setShowClock"><span>显示时钟</span></label>
+        <label class="switch"><input type="checkbox" id="setShowCats"><span>显示分类栏</span></label>
+        <label class="switch"><input type="checkbox" id="setShowNote"><span>显示便签面板</span></label>
+      </section>
+
+      <section class="group">
+        <h3>分类管理</h3>
+        <ul class="cat-list" id="catList"></ul>
+        <button class="btn ghost wide" id="btnAddCat" type="button">+ 新增分类</button>
+      </section>
+
+      <section class="group">
+        <h3>数据</h3>
+        <div class="row btns">
+          <button class="btn ghost" id="btnExport" type="button">导出 JSON</button>
+          <label class="btn ghost" for="importFile">导入 JSON</label>
+          <input id="importFile" type="file" accept="application/json" hidden>
+        </div>
+        <p class="meta" id="storeMode">存储：检测中…</p>
+        <p class="meta">数据保存在你自己的服务端 SQLite；服务不可用时自动退回浏览器本地存储。</p>
+      </section>
+
+      <p class="meta foot-note">起始页 · 自建实现，不加载任何第三方脚本或字体。</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="home/store.js"></script>
+  <script src="home/bookmarks.js"></script>
+  <script src="home/home.js"></script>
+</body>
+</html>

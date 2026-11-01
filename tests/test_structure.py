@@ -13,8 +13,10 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-WEB = ROOT / "src" / "static" / "web"
-ICONS = ROOT / "src" / "static" / "icons"
+STATIC = ROOT / "src" / "static"
+#: 现在服务端返回的是 home/index.html（青柠风格新版），旧版 web/ 仅作回退
+WEB = STATIC / "home"
+ICONS = STATIC / "icons"
 
 
 def read(name):
@@ -51,7 +53,12 @@ class TestHtmlStructure:
         local = [r for r in refs if not r.startswith(("http", "#", "data:"))]
         assert local, "没有任何本地引用"
         for r in local:
-            assert (WEB / r).exists(), f"引用了不存在的文件: {r}"
+            # 页面跳转（如 quant/）不是资源引用，跳过
+            if r.endswith("/") or "." not in r.rsplit("/", 1)[-1]:
+                continue
+            # 引用形如 home/home.css，挂载点 /home 指向 src/static/home
+            target = STATIC / r
+            assert target.exists(), f"引用了不存在的文件: {r} -> {target}"
 
     def test_no_external_cdn(self):
         """★ 关键：本机所有 CDN 不可达，任何外部资源引用都会让页面残缺。"""
@@ -59,7 +66,7 @@ class TestHtmlStructure:
         ext = re.findall(r'(?:href|src)="(https?://[^"]+)"', html)
         assert not ext, f"index.html 引用了外部资源: {ext}"
 
-        for f in ("style.css", "app.js", "config.js", "search.js"):
+        for f in ("home.css", "home.js", "store.js", "bookmarks.js"):
             src = read(f)
             urls = re.findall(r'https?://[^\s"\'\)]+', src)
             # 允许搜索引擎 URL 与天气 API（运行时请求，不是资源加载）
@@ -68,7 +75,8 @@ class TestHtmlStructure:
             assert not resource_like, f"{f} 引用了外部资源: {resource_like}"
 
     def test_no_css_import(self):
-        assert "@import" not in read("style.css")
+        """CSS 里禁止 @import —— 会串行阻塞渲染，本机也无外部字体可引。"""
+        assert "@import" not in read("home.css")
 
     def test_search_input_autofocus(self):
         """打开就该能直接输入。"""

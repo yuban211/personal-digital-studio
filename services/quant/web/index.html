@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>全 A 行情 · 模拟实盘</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="stylesheet" href="assets/quant.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-left">
+    <a class="back" href="../" title="回起始页">←</a>
+    <strong class="brand">全 A 行情 · 模拟实盘</strong>
+    <span class="tag" id="modeTag">连接中</span>
+  </div>
+  <div class="top-right">
+    <span class="meta" id="metaLine">—</span>
+    <button class="btn sm" id="btnTick" type="button" title="立刻跑一轮策略">执行一轮</button>
+    <button class="btn sm primary" id="btnEngine" type="button">暂停引擎</button>
+  </div>
+</header>
+
+<!-- 指数条 -->
+<section class="indices" id="indices"></section>
+
+<main class="layout">
+  <div class="col-main">
+
+    <!-- 涨跌分布 -->
+    <section class="card">
+      <div class="card-head">
+        <h2>市场概览</h2>
+        <span class="meta" id="breadthMeta">—</span>
+      </div>
+      <div class="breadth">
+        <div class="bfill" id="bfill"><i class="b-up"></i><i class="b-flat"></i><i class="b-down"></i></div>
+        <div class="blegend" id="blegend"></div>
+      </div>
+    </section>
+
+    <!-- 板块 -->
+    <section class="card">
+      <div class="card-head">
+        <h2>行业板块</h2>
+        <span class="meta">按涨幅排序 · 点击查看成分提示</span>
+      </div>
+      <div class="sectors" id="sectors"></div>
+    </section>
+
+    <!-- 全A行情 -->
+    <section class="card quotes">
+      <div class="card-head">
+        <h2>沪深京 A 股</h2>
+        <div class="filters" id="filters"></div>
+      </div>
+      <div class="toolbar">
+        <input id="search" class="search" type="search" placeholder="输入代码或名称筛选">
+        <span class="meta" id="listMeta">—</span>
+      </div>
+      <div class="table-wrap">
+        <table class="grid" id="grid">
+          <thead>
+            <tr>
+              <th class="c-code" data-sort="code">代码</th>
+              <th class="c-name">名称</th>
+              <th class="num" data-sort="price">最新价</th>
+              <th class="num" data-sort="chg">涨跌幅</th>
+              <th class="num">涨跌额</th>
+              <th class="num" data-sort="amount">成交额</th>
+              <th class="num" data-sort="turnover">换手率</th>
+              <th class="num" data-sort="vol_ratio">量比</th>
+              <th class="num">振幅</th>
+              <th class="num">最高</th>
+              <th class="num">最低</th>
+              <th class="num" data-sort="pe">市盈率</th>
+              <th class="num" data-sort="mktcap">总市值</th>
+              <th class="num" data-sort="main_flow">主力净流入</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="btn sm" id="prevPage" type="button">上一页</button>
+        <span class="meta" id="pageInfo">—</span>
+        <button class="btn sm" id="nextPage" type="button">下一页</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 右栏：账户 -->
+  <aside class="col-side">
+    <section class="card acct">
+      <div class="card-head">
+        <h2>模拟账户</h2>
+        <span class="tag" id="acctMode">纸上交易</span>
+      </div>
+      <div class="equity" id="equity">—</div>
+      <div class="kpis">
+        <div><span>总盈亏</span><b id="kPnl">—</b></div>
+        <div><span>今日</span><b id="kDay">—</b></div>
+        <div><span>可用</span><b id="kCash">—</b></div>
+        <div><span>持仓市值</span><b id="kMv">—</b></div>
+      </div>
+      <canvas id="navChart" height="120" aria-label="净值曲线"></canvas>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>持仓</h2>
+        <span class="meta" id="posMeta">—</span>
+      </div>
+      <div class="table-wrap short">
+        <table class="grid small" id="posTable">
+          <thead>
+            <tr><th>名称</th><th class="num">持股</th><th class="num">成本</th>
+                <th class="num">现价</th><th class="num">盈亏</th><th class="num">仓位</th><th></th></tr>
+          </thead>
+          <tbody id="posRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>策略</h2>
+        <span class="tag" id="stratTag">—</span>
+      </div>
+      <label class="field">
+        <span>当前策略</span>
+        <select id="stratSel"></select>
+      </label>
+      <p class="meta" id="stratDesc">—</p>
+      <div class="risk-grid">
+        <label class="field"><span>止损 %</span><input id="rStop" type="number" step="1" min="-50" max="0"></label>
+        <label class="field"><span>止盈 %</span><input id="rTake" type="number" step="1" min="0" max="200"></label>
+        <label class="field"><span>单票仓位 %</span><input id="rPos" type="number" step="1" min="1" max="100"></label>
+        <label class="field"><span>最多持仓</span><input id="rMax" type="number" step="1" min="1" max="30"></label>
+      </div>
+      <div class="row-btns">
+        <button class="btn sm primary" id="btnSave" type="button">保存设置</button>
+        <button class="btn sm ghost" id="btnReset" type="button">重置账户</button>
+      </div>
+      <div class="signals" id="signals"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>成交记录</h2><span class="meta" id="tradeMeta">—</span></div>
+      <ul class="trades" id="trades"></ul>
+    </section>
+  </aside>
+</main>
+
+<!-- 个股详情 -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-mask" id="drawerMask"></div>
+  <div class="drawer-body">
+    <div class="drawer-head">
+      <div>
+        <h3 id="dName">—</h3>
+        <span class="meta" id="dCode">—</span>
+      </div>
+      <button class="btn sm ghost" id="dClose" type="button">✕</button>
+    </div>
+    <div class="d-quote" id="dQuote"></div>
+    <canvas id="dChart" height="150"></canvas>
+    <div class="d-trade">
+      <input id="dQty" type="number" step="100" min="100" value="100" aria-label="数量">
+      <button class="btn sm buy" id="dBuy" type="button">买入</button>
+      <button class="btn sm sell" id="dSell" type="button">卖出</button>
+    </div>
+    <p class="meta" id="dHint">买入按 100 股整数倍；卖出可清空可卖数量。</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="assets/quant.js"></script>
+</body>
+</html>

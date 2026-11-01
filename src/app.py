@@ -17,10 +17,11 @@
 
 from __future__ import annotations
 
+import os
 import secrets
 import time
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -47,6 +48,11 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.mount("/web", StaticFiles(directory=str(web)), name="web")
     if cfg.prefix:
         app.mount(cfg.prefix + "/web", StaticFiles(directory=str(web)), name="web-prefixed")
+
+    home = cfg.static_dir / "home"
+    app.mount("/home", StaticFiles(directory=str(home)), name="home")
+    if cfg.prefix:
+        app.mount(cfg.prefix + "/home", StaticFiles(directory=str(home)), name="home-prefixed")
 
     def get_conn():
         with open_db(cfg.db_path) as c:
@@ -82,7 +88,10 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     @app.get("/")
     @app.get(cfg.prefix + "/")
     def index():
-        f = web / "index.html"
+        f = home / "index.html"
+        if not f.exists():
+            # 新版页面缺失时退回旧版，宁可少功能也别白屏
+            f = web / "index.html"
         if not f.exists():
             raise HTTPException(500, "index.html 缺失")
         return FileResponse(f, media_type="text/html; charset=utf-8",
@@ -130,10 +139,166 @@ def create_app(cfg: Config | None = None) -> FastAPI:
         return JSONResponse({"ok": True, "saved": len(clean)})
 
     @app.get(cfg.prefix + "/api/backup")
-    def backup(conn=Depends(get_conn)):
+    def backup(request: Request, conn=Depends(get_conn)):
         """导出全部配置，供前端下载备份。"""
+        if not require_token(request):
+            raise HTTPException(401)
         return JSONResponse({"ok": True,
                              "config": repo.SettingsRepo(conn).all()})
+
+    # ══════════════════════════════════════════════════════════
+    # 收藏夹 API（分类 + 站点）
+    # ─────────────────────────────────────────────────────────
+    # 鉴权：默认开放（单人自用）；设了 LIBRARY_TOKEN 才要求请求头带令牌。
+    # 与 /api/config 分开的原因：配置里有敏感值，收藏夹只是网址，没必要上锁。
+    # ══════════════════════════════════════════════════════════
+    lib = APIRouter()
+
+    def guard_library(request: Request) -> None:
+        want = os.getenv("LIBRARY_TOKEN", "").strip()
+        if not want:
+            return
+        got = request.headers.get("X-Library-Token", "")
+        if not (got and secrets.compare_digest(got, want)):
+            raise HTTPException(401, "收藏夹令牌无效")
+
+    async def read_json(request: Request) -> dict:
+        try:
+            payload = await request.json()
+        except Exception:
+            raise HTTPException(400, "不是有效的 JSON")
+        if not isinstance(payload, dict):
+            raise HTTPException(400, "请求体必须是对象")
+        return payload
+
+    @lib.get("/api/library")
+    def library(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        return JSONResponse({
+            "ok": True,
+            "categories": repo.CategoryRepo(conn).list_all(),
+            "bookmarks": repo.BookmarkRepo(conn).list_all(),
+        })
+
+    @lib.get("/api/categories")
+    def list_categories(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        return JSONResponse({"ok": True, "categories": repo.CategoryRepo(conn).list_all()})
+
+    @lib.post("/api/categories")
+    async def create_category(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        cid = repo.CategoryRepo(conn).create(data)
+        return JSONResponse({"ok": True, "id": cid})
+
+    @lib.put("/api/categories/{cid}")
+    async def update_category(cid: int, request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        ok = repo.CategoryRepo(conn).update(cid, data)
+        if not ok:
+            raise HTTPException(404, "分类不存在或没有可更新字段")
+        return JSONResponse({"ok": True})
+
+    @lib.delete("/api/categories/{cid}")
+    def delete_category(cid: int, request: Request, conn=Depends(get_conn),
+                        cascade: bool = False):
+        guard_library(request)
+        ok = repo.CategoryRepo(conn).delete(cid, cascade=cascade)
+        if not ok:
+            raise HTTPException(404, "分类不存在")
+        return JSONResponse({"ok": True})
+
+    @lib.post("/api/categories/reorder")
+    async def reorder_categories(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        ids = [int(x) for x in data.get("ids", []) if str(x).isdigit()]
+        return JSONResponse({"ok": True, "count": repo.CategoryRepo(conn).reorder(ids)})
+
+    @lib.get("/api/bookmarks")
+    def list_bookmarks(request: Request, conn=Depends(get_conn),
+                       category_id: int | None = None):
+        guard_library(request)
+        return JSONResponse({"ok": True,
+                             "bookmarks": repo.BookmarkRepo(conn).list_all(category_id)})
+
+    @lib.post("/api/bookmarks")
+    async def create_bookmark(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        try:
+            bid = repo.BookmarkRepo(conn).create(data)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return JSONResponse({"ok": True, "id": bid})
+
+    @lib.put("/api/bookmarks/{bid}")
+    async def update_bookmark(bid: int, request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        ok = repo.BookmarkRepo(conn).update(bid, data)
+        if not ok:
+            raise HTTPException(404, "收藏不存在或没有可更新字段")
+        return JSONResponse({"ok": True})
+
+    @lib.delete("/api/bookmarks/{bid}")
+    def delete_bookmark(bid: int, request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        if not repo.BookmarkRepo(conn).delete(bid):
+            raise HTTPException(404, "收藏不存在")
+        return JSONResponse({"ok": True})
+
+    @lib.post("/api/bookmarks/reorder")
+    async def reorder_bookmarks(request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        data = await read_json(request)
+        ids = [int(x) for x in data.get("ids", []) if str(x).isdigit()]
+        return JSONResponse({"ok": True, "count": repo.BookmarkRepo(conn).reorder(ids)})
+
+    @lib.post("/api/bookmarks/{bid}/move")
+    async def move_bookmark(bid: int, request: Request, conn=Depends(get_conn)):
+        """拖拽落点：把收藏移到目标分类的指定下标。"""
+        guard_library(request)
+        data = await read_json(request)
+        cat = data.get("category_id")
+        cat = int(cat) if cat not in (None, "", 0) else None
+        pos = data.get("position")
+        pos = int(pos) if pos not in (None, "") else None
+        ok = repo.BookmarkRepo(conn).move(bid, cat, pos)
+        if not ok:
+            raise HTTPException(404, "收藏不存在")
+        return JSONResponse({"ok": True})
+
+    @lib.post("/api/bookmarks/{bid}/hit")
+    def hit_bookmark(bid: int, request: Request, conn=Depends(get_conn)):
+        guard_library(request)
+        repo.BookmarkRepo(conn).hit(bid)
+        return JSONResponse({"ok": True})
+
+    @lib.get("/api/library/export")
+    def export_library(request: Request, conn=Depends(get_conn)):
+        """导出成可直接再导入的 JSON（分类含 id，导入时按名字对齐）。"""
+        guard_library(request)
+        data = repo.BookmarkRepo(conn).export_all()
+        name_by_id = {c["id"]: c["name"] for c in data["categories"]}
+        for b in data["bookmarks"]:
+            b["category"] = name_by_id.get(b.get("category_id"))
+        return JSONResponse({"ok": True, "version": 1, **data})
+
+    @lib.post("/api/library/import")
+    async def import_library(request: Request, conn=Depends(get_conn),
+                             replace: bool = False):
+        guard_library(request)
+        data = await read_json(request)
+        stats = repo.BookmarkRepo(conn).import_all(data, replace=replace)
+        return JSONResponse({"ok": True, **stats})
+
+    app.include_router(lib, prefix=cfg.prefix)
+    if cfg.prefix:
+        # 反代剥掉前缀时，请求到达这里已经是 /api/...
+        app.include_router(lib, prefix="")
 
     return app
 

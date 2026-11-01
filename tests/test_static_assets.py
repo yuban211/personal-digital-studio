@@ -20,9 +20,10 @@ def test_all_static_refs_resolve():
     assert r.returncode == 0, f"静态资源自检失败:\n{r.stdout}\n{r.stderr}"
 
 
-def test_index_refs_are_web_prefixed():
-    html = (ROOT / "src" / "static" / "web" / "index.html").read_text(encoding="utf-8")
-    for name in ("style.css", "config.js", "search.js", "app.js"):
-        assert f'href="web/{name}"' in html or f'src="web/{name}"' in html, \
-            f"{name} 必须带 web/ 前缀"
+def test_home_refs_are_prefixed():
+    """新版首页的资源必须带 home/ 前缀：裸相对路径在 /studio/ 下会 404。"""
+    html = (ROOT / "src" / "static" / "home" / "index.html").read_text(encoding="utf-8")
+    for name in ("home.css", "store.js", "bookmarks.js", "home.js"):
+        assert f'href="home/{name}"' in html or f'src="home/{name}"' in html, \
+            f"{name} 必须带 home/ 前缀"
         assert f'"{name}"' not in html, f"仍存在裸引用 {name}"

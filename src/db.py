@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 #: 当前 schema 版本。改动表结构时必须 +1 并在 MIGRATIONS 里追加。
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -60,6 +60,33 @@ CREATE INDEX IF NOT EXISTS idx_posts_published
   ON posts(published, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_projects_sort
   ON projects(featured DESC, sort_order ASC, updated_at DESC);
+
+-- ── v2：收藏夹（分类 + 站点）──
+-- 起始页的"快捷入口"不再是前端硬编码数组，而是可增删改、可分类的真实数据。
+-- 分类被删时站点不跟着消失（ON DELETE SET NULL），落到"未分类"，避免误删连坐。
+CREATE TABLE IF NOT EXISTS bm_categories (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  icon       TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       TEXT NOT NULL,
+  url         TEXT NOT NULL,
+  icon        TEXT NOT NULL DEFAULT '',
+  category_id INTEGER REFERENCES bm_categories(id) ON DELETE SET NULL,
+  note        TEXT NOT NULL DEFAULT '',
+  hits        INTEGER NOT NULL DEFAULT 0,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookmarks_sort
+  ON bookmarks(category_id, sort_order ASC, id ASC);
 """
 
 #: 版本 1 → 2 的升级脚本。目前为空，仅示范结构。
@@ -74,6 +101,24 @@ DEFAULT_SETTINGS = {
     "motion_intensity": "immersive",
     "now": "## 正在做\n\n把个人数字工作室完善起来。",
 }
+
+#: 首次启动时的分类。只在 bm_categories 为空时写入，之后用户怎么改都不再覆盖。
+DEFAULT_CATEGORIES = [
+    ("常用", "★"),
+    ("技术", "◆"),
+    ("学习", "✎"),
+    ("娱乐", "♫"),
+]
+
+#: 首次启动时的示例收藏。(标题, 网址, 分类名, 图标文字)
+DEFAULT_BOOKMARKS = [
+    ("百度", "https://www.baidu.com", "常用", "百"),
+    ("哔哩哔哩", "https://www.bilibili.com", "常用", "B"),
+    ("GitHub", "https://github.com", "技术", "G"),
+    ("MDN", "https://developer.mozilla.org", "技术", "M"),
+    ("知乎", "https://www.zhihu.com", "学习", "知"),
+    ("网易云音乐", "https://music.163.com", "娱乐", "网"),
+]
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -137,6 +182,29 @@ def init_db(path: Path) -> None:
             conn.execute(
                 "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v)
             )
+        seed_library(conn)
+
+
+def seed_library(conn: sqlite3.Connection) -> None:
+    """首次启动灌入示例分类与收藏。
+
+    只在该表为空时执行 —— 用户删光了自己的收藏，重启不该被塞回来。
+    """
+    if conn.execute("SELECT COUNT(*) FROM bm_categories").fetchone()[0]:
+        return
+    ids: dict[str, int] = {}
+    for i, (name, icon) in enumerate(DEFAULT_CATEGORIES):
+        cur = conn.execute(
+            "INSERT INTO bm_categories(name, icon, sort_order) VALUES(?,?,?)",
+            (name, icon, i),
+        )
+        ids[name] = int(cur.lastrowid)
+    for i, (title, url, cat, icon) in enumerate(DEFAULT_BOOKMARKS):
+        conn.execute(
+            "INSERT INTO bookmarks(title, url, icon, category_id, sort_order) "
+            "VALUES(?,?,?,?,?)",
+            (title, url, icon, ids.get(cat), i),
+        )
 
 
 def backup(path: Path, backup_dir: Path) -> Path | None:
