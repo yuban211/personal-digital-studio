@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 
 from app.bus import TOPIC_QUOTES, MemoryBus          # noqa: E402
 from app.collector import Snapshot, parse_symbol     # noqa: E402
-from app.settings import Settings                     # noqa: E402
+from app.settings import Settings, load_settings    # noqa: E402
 
 
 # ── 标的解析 ───────────────────────────────────────────────────────────
@@ -121,6 +121,27 @@ def test_history_returns_503_when_no_lake(tmp_path):
         r = c.get("/api/history", params={"symbol": "600519"})
         assert r.status_code == 503
         assert r.json()["code"] == "no_lake"
+
+
+def test_lake_available_false_when_root_blank(monkeypatch, tmp_path):
+    """CNE_LAKE_ROOT="" 会被 Path("") 解析成 "."，绝不能当成"湖可用"。
+
+    真机上踩过：误报 available=true，/api/history 于是走查询分支返回
+    lake_error(404)，而正确语义是 503 no_lake。
+    """
+    monkeypatch.setenv("CNE_LAKE_ROOT", "")
+    monkeypatch.setenv("MARKET_DATA_DIR", str(tmp_path))
+    s = load_settings()
+    assert str(s.lake_root) == "."
+    assert s.lake_available is False
+
+
+def test_lake_available_true_when_dir_exists(monkeypatch, tmp_path):
+    lake = tmp_path / "lake"
+    lake.mkdir()
+    monkeypatch.setenv("CNE_LAKE_ROOT", str(lake))
+    monkeypatch.setenv("MARKET_DATA_DIR", str(tmp_path))
+    assert load_settings().lake_available is True
 
 
 def test_token_required_when_configured(tmp_path):

@@ -42,14 +42,19 @@ fi
 say "   可达 $ok/5"
 
 # ── ② 安装依赖（幂等，首次 1-3 分钟）──────────────────────
-say "② 安装依赖…"
-if ! bash "$ROOT/scripts/install-market.sh" > /workspace/market-bringup.log 2>&1; then
-    say "✗ 安装失败，日志末尾："
-    tail -25 /workspace/market-bringup.log
-    exit 3
+# 已装好就跳过：这样同一行命令既能首次安装，也能当"快速重启"用。
+if [ -f "$ROOT/config.env" ] && "$PY" -c "import fastapi,uvicorn,pandas,duckdb,easy_tdx" >/dev/null 2>&1; then
+    say "② 依赖已就绪，跳过安装（强制重装：删掉 $ROOT/config.env 再跑）"
+else
+    say "② 安装依赖…"
+    if ! bash "$ROOT/scripts/install-market.sh" > /workspace/market-bringup.log 2>&1; then
+        say "✗ 安装失败，日志末尾："
+        tail -25 /workspace/market-bringup.log
+        exit 3
+    fi
+    # 把安装脚本的关键结论回显出来（自检结果就在里面）
+    grep -E "可用节点|排名|✓ 自检|⚠ 自检|依赖 OK|easy-tdx OK" /workspace/market-bringup.log | tail -5
 fi
-# 把安装脚本的关键结论回显出来（自检结果就在里面）
-grep -E "可用节点|排名|✓ 自检|⚠ 自检|依赖 OK|easy-tdx OK" /workspace/market-bringup.log | tail -5
 
 # ── ③ 收掉旧进程 ──────────────────────────────────────────
 if [ -f /workspace/market.pid ]; then

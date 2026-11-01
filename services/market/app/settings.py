@@ -98,7 +98,17 @@ class Settings:
 
     @property
     def lake_available(self) -> bool:
-        return self.lake_root.exists()
+        """数据湖是否真的可用。
+
+        ★ 不能只写 `self.lake_root.exists()`：CNE_LAKE_ROOT="" 时
+          `Path("")` 会解析成 "."，而 "." 永远存在，于是禁用了数据湖的机器
+          也会 report available=true，/api/history 走进查询分支返回
+          lake_error（404），而正确语义应是 503 no_lake。
+        """
+        root = str(self.lake_root).strip()
+        if root in ("", "."):
+            return False
+        return self.lake_root.is_dir()
 
 
 def load_settings() -> Settings:
