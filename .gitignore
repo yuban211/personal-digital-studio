@@ -11,3 +11,9 @@ services/market/data/
 services/market/config.env
 services/market/venv/
 services/quant/data/
+
+# 部署临时产物（远程配置快照与补丁脚本）
+.deploy/
+
+# 含真实密钥的运行配置（模板见 scripts/startpage.env.example）
+scripts/startpage.env
