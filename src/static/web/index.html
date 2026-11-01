@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>起始页</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="web/style.css">
 </head>
 <body>
 
@@ -90,8 +90,10 @@
     </div>
   </div>
 
-  <script src="config.js"></script>
-  <script src="search.js"></script>
-  <script src="app.js"></script>
+  <!-- 注意：静态挂在 /web 下，资源必须带 web/ 前缀（相对当前 URL 解析，
+       站点挂在根或 /studio/ 前缀下都能命中） -->
+  <script src="web/config.js"></script>
+  <script src="web/search.js"></script>
+  <script src="web/app.js"></script>
 </body>
 </html>

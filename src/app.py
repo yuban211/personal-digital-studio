@@ -41,7 +41,12 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     app.state.sessions = {}
 
     web = cfg.static_dir / "web"
+    # 静态资源挂载：/web 恒定可用（反代剥前缀时走这条），
+    # 配了 APP_PREFIX 时再挂一份带前缀的（反代不剥前缀时走这条）。
+    # 前端 index.html 统一用相对路径 web/xxx 引用，两种反代行为都能命中。
     app.mount("/web", StaticFiles(directory=str(web)), name="web")
+    if cfg.prefix:
+        app.mount(cfg.prefix + "/web", StaticFiles(directory=str(web)), name="web-prefixed")
 
     def get_conn():
         with open_db(cfg.db_path) as c:

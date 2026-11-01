@@ -4,5 +4,6 @@ __pycache__/
 .pytest_cache/
 data/
 backups/
+dist/
 .env
 .DS_Store
