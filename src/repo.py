@@ -370,6 +370,9 @@ def normalize_url(raw: str) -> str:
 
     常见输入：example.com / https://example.com / www.example.com/path
     javascript: 这类伪协议一律拒绝 —— 收藏是可以被导入的，别开 XSS 口子。
+
+    站内相对路径（/studio/quant/、../quant/、#anchor）原样保留：
+    起始页要给自己的子页面做磁贴，硬拼成 https:// 只会得到 https://../quant/。
     """
     v = raw.strip()
     if not v:
@@ -377,6 +380,9 @@ def normalize_url(raw: str) -> str:
     low = v.lower()
     if low.startswith(("javascript:", "data:", "vbscript:", "file:")):
         return ""
+    # 相对路径：以 / ./ ../ # 开头的不补协议（//host 属于协议相对，交给浏览器解析）
+    if v.startswith(("/", "./", "../", "#")):
+        return v[:2000]
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", v):
         v = "https://" + v.lstrip("/")
     return v[:2000]

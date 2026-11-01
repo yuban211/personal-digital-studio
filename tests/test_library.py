@@ -85,6 +85,20 @@ class TestLibrary:
         r = client.post("/api/bookmarks", json={"title": "x", "url": "javascript:alert(1)"})
         assert r.status_code == 400
 
+    def test_keep_internal_relative_path(self, client):
+        """站内子页面（如量化台）应能直接收藏，不能被拼成 https://../quant/。"""
+        for raw, want in (("../quant/", "../quant/"),
+                          ("/studio/quant/", "/studio/quant/"),
+                          ("quant/", "https://quant/"),
+                          ("example.com", "https://example.com")):
+            r = client.post("/api/bookmarks", json={"title": "t", "url": raw})
+            assert r.status_code == 200, raw
+            bid = r.json()["id"]
+            row = [b for b in client.get("/api/bookmarks").json()["bookmarks"]
+                   if b["id"] == bid][0]
+            assert row["url"] == want, f"{raw} -> {row['url']}"
+            client.delete(f"/api/bookmarks/{bid}")
+
     def test_move_between_categories(self, client):
         cats = client.get("/api/categories").json()["categories"]
         target = cats[1]["id"]
