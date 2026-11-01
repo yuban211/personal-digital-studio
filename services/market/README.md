@@ -166,3 +166,11 @@ WS  /ws/quotes                   实时推送 {"type":"quotes","ts":...,"quotes"
 - [ ] Redis 模式的端到端验证（内存模式已验证）
 - [ ] 与东方财富/同花顺的数值对数脚本（`scripts/verify_quotes.py` 待写）
 - [ ] CNEquity 真实数据湖的建库（demo profile 已验证接口，full profile 未在本机跑）
+
+## 九、A 股主板策略回测
+
+单标的日线趋势突破策略和回测命令见 [STRATEGY.md](STRATEGY.md)。支持 CSV 或本地 CNEquity 数据湖，输出交易记录、每日权益曲线和收益/回撤指标；仅用于研究，不连接券商。
+
+```bash
+python services/market/scripts/backtest_strategy.py --from-lake --symbol 600519.SH --start 2018-01-01
+```
