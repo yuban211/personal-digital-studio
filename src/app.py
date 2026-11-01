@@ -99,6 +99,13 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     def healthz():
         return {"ok": True, "prefix": cfg.prefix, "db": str(cfg.db_path)}
 
+    # 裸 /healthz 也留一条：启动脚本与反代探活两种写法都用得到，
+    # 配了 APP_PREFIX 时避免探活误判为"启动失败"。
+    if cfg.prefix:
+        @app.get("/healthz")
+        def healthz_root():
+            return healthz()
+
     # ── 配置同步 API（可选）──
     # 前端把配置存 localStorage；这里只做"可选的跨设备同步"。
     @app.get(cfg.prefix + "/api/config")
