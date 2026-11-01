@@ -24,47 +24,17 @@ import json
 import logging
 import socket
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .bus import TOPIC_QUOTES, EventBus
 from .settings import Settings
+from .symbols import parse_symbol                 # noqa: F401 - 对外保持原有导入路径
 
 log = logging.getLogger("market.collector")
-
-#: 市场代码前缀 → 通达信 Market 枚举值（SZ=0, SH=1, BJ=2）
-_PREFIX_MARKET = {
-    "6": 1,   # 上海
-    "5": 1,   # 沪基金
-    "0": 0,   # 深圳
-    "3": 0,   # 深基金
-    "2": 0,   # 深B
-    "8": 2,   # 北交所
-    "4": 2,   # 新三板
-}
-
-
-def parse_symbol(symbol: str) -> tuple[int, str] | None:
-    """'600519.SH' / '600519' → (market, code)。无法识别返回 None。"""
-    s = symbol.strip().upper()
-    if not s:
-        return None
-    if "." in s:
-        code, _, suffix = s.partition(".")
-        suffix = suffix.strip()
-        market = {"SH": 1, "SS": 1, "SZ": 0, "BJ": 2}.get(suffix)
-        if market is None or not code:
-            return None
-        return market, code
-    if s.startswith(("SH", "SZ", "BJ")) and len(s) > 2:
-        market = {"SH": 1, "SZ": 0, "BJ": 2}[s[:2]]
-        return market, s[2:]
-    if s.isdigit() and len(s) == 6:
-        market = _PREFIX_MARKET.get(s[0])
-        return None if market is None else (market, s)
-    return None
 
 
 @dataclass
@@ -133,11 +103,18 @@ class HostRanker:
         except Exception as exc:
             log.warning("节点排名缓存写入失败（不影响运行）：%s", exc)
 
-    def probe(self, timeout: float = 2.0, validate=None) -> list[str]:
+    def probe(self, timeout: float = 1.5, validate=None,
+              want: int = 5, budget: float = 15.0) -> list[str]:
         """探测候选节点。
 
-        注意：TCP 能连上 ≠ 协议能用。实测标准池里多数节点不响应 MAC 协议，
-        所以先 TCP 过滤可达性，再用真实协议握手（validate）过滤"能连但不会说话"的节点。
+        TCP 能连上 ≠ 协议能用：实测标准池多数节点不响应 MAC 协议，
+        所以先 TCP 过滤，再用真实协议握手过滤"能连但不会说话"的节点。
+
+        两个必须知道的实测坑（2026-11-01）：
+          1. 坏节点握手要 20 秒才抛错，且 easy_tdx 的 timeout 参数管不住它内部的
+             重试 —— 52 个节点按 8 并发排完要 130 秒以上，直接把首屏数据拖没。
+             所以这里全并发提交 + 先到先得 + 限时返回，凑够 want 个就收工。
+          2. 能用的节点其实集中在少数几个，多测无益；剩下的靠运行期故障转移。
         """
         if not self.candidates:
             return []
@@ -150,7 +127,7 @@ class HostRanker:
             except Exception:
                 return host, None
 
-        with ThreadPoolExecutor(max_workers=16) as pool:
+        with ThreadPoolExecutor(max_workers=32) as pool:
             results = list(pool.map(ping, self.candidates))
         reachable = sorted([(ms, h) for h, ms in results if ms is not None], key=lambda x: x[0])
         if not reachable:
@@ -158,16 +135,7 @@ class HostRanker:
             return []
 
         if validate is not None:
-            def check(item):
-                ms, host = item
-                try:
-                    return (ms, host) if validate(host) else None
-                except Exception:
-                    return None
-
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                ok = [r for r in pool.map(check, reachable) if r is not None]
-            reachable = sorted(ok, key=lambda x: x[0])
+            reachable = self._validate_first(reachable, validate, want, budget)
 
         self.ranked = [h for _, h in reachable[:self.top]]
         self.latency = {h: ms for ms, h in reachable[:self.top]}
@@ -175,7 +143,35 @@ class HostRanker:
             self.save_cache()
         return self.ranked
 
-    def ensure(self, timeout: float = 2.0, validate=None) -> list[str]:
+    @staticmethod
+    def _validate_first(reachable, validate, want: int, budget: float):
+        """并发握手，凑够 want 个可用节点或超时即返回。"""
+        pool = ThreadPoolExecutor(max_workers=min(32, max(4, len(reachable))))
+        futures = {pool.submit(validate, host): (ms, host) for ms, host in reachable}
+        ok: list[tuple[float, str]] = []
+        deadline = time.time() + budget
+        try:
+            for fut in as_completed(futures, timeout=max(0.1, budget)):
+                try:
+                    passed = fut.result()
+                except Exception:
+                    passed = False
+                if passed:
+                    ok.append(futures[fut])
+                    if len(ok) >= want or time.time() > deadline:
+                        break
+                if time.time() > deadline:
+                    break
+        except FuturesTimeout:
+            pass
+        finally:
+            for f in futures:
+                f.cancel()
+            # 不等剩下的慢节点：它们的线程会自己跑完，但不能阻塞我们出首屏数据
+            pool.shutdown(wait=False, cancel_futures=True)
+        return sorted(ok, key=lambda x: x[0])
+
+    def ensure(self, timeout: float = 1.5, validate=None) -> list[str]:
         cached = self.load_cache()
         if cached:
             return cached
@@ -187,10 +183,14 @@ class QuoteCollector:
     settings: Settings
     bus: EventBus
     snap: Snapshot
+    #: 自选池（需提供 pairs()）。为空则退回 settings.symbols 的静态池。
+    watch: Any = None
     ranker: HostRanker = field(init=False)
     _tasks: list = field(default_factory=list, init=False)
 
     def __post_init__(self) -> None:
+        if self.watch is None:
+            self.watch = _StaticWatch(self.settings.symbols)
         self.ranker = HostRanker(
             candidates=_candidate_hosts(self.settings),
             data_dir=self.settings.data_dir,
@@ -198,42 +198,39 @@ class QuoteCollector:
             top=self.settings.host_top,
         )
         self._host_idx = 0
-        self._ready = asyncio.Event()
+        self._probe_lock: asyncio.Lock | None = None
 
     # ── 对外 ──
     async def start(self) -> None:
-        pairs = []
-        for sym in self.settings.symbols:
-            parsed = parse_symbol(sym)
-            if parsed:
-                pairs.append(parsed)
-            else:
-                log.warning("标的 %r 无法解析，跳过", sym)
-        if not pairs:
-            log.warning("TDX_SYMBOLS 为空，采集器不会发起任何请求")
-            return
-        shards = _shard(pairs, self.settings.workers)
-        # 节点测速放后台：探测 50+ 节点要几十秒，绝不能把 HTTP 端口的监听卡住
-        probe_task = asyncio.create_task(self._probe_then_ready(), name="tdx-probe")
-        for i, shard in enumerate(shards):
-            self._tasks.append(asyncio.create_task(self._worker(i, shard), name=f"tdx-worker-{i}"))
+        n = max(1, self.settings.workers)
+        # 即便当前池子为空也起 worker —— 池子可以运行时加票，不该要求重启
+        for i in range(n):
+            self._tasks.append(asyncio.create_task(self._worker(i, n), name=f"tdx-worker-{i}"))
         log.info("采集器启动：%d 个 worker，%d 只标的，协议=%s，轮询=%ss",
-                 len(shards), len(pairs), self.settings.protocol, self.settings.poll_interval)
-        await asyncio.sleep(0)
-        probe_task.add_done_callback(lambda t: t.exception())
+                 n, len(self.watch.pairs()), self.settings.protocol, self.settings.poll_interval)
+        if not self.watch.pairs():
+            log.warning("自选池为空，等待前端上报或 TDX_SYMBOLS 配置")
 
-    async def _probe_then_ready(self) -> None:
-        try:
-            ranked = await asyncio.to_thread(self.ranker.ensure, 2.0, self._validate_host)
-            if ranked:
-                log.info("节点测速完成，可用 %d 个，最快 %s (%.0f ms)",
-                         len(ranked), ranked[0], self.ranker.latency.get(ranked[0], 0))
-            else:
-                log.warning("所有候选节点都不可达或不支持当前协议，采集器将持续重试")
-        except Exception:
-            log.exception("节点测速失败")
-        finally:
-            self._ready.set()
+    async def _ensure_hosts(self) -> None:
+        """惰性测速：第一次真要连节点时才算排名。
+
+        不在 start() 里预探测，是因为没标的时白扫 50+ 节点纯浪费，
+        而且会让测试/无票启动拖上几十秒。
+        """
+        if self._probe_lock is None:
+            self._probe_lock = asyncio.Lock()
+        async with self._probe_lock:
+            if self.ranker.ranked:
+                return
+            try:
+                ranked = await asyncio.to_thread(self.ranker.ensure, 2.0, self._validate_host)
+                if ranked:
+                    log.info("节点测速完成，可用 %d 个，最快 %s (%.0f ms)",
+                             len(ranked), ranked[0], self.ranker.latency.get(ranked[0], 0))
+                else:
+                    log.warning("所有候选节点都不可达或不支持当前协议，采集器将持续重试")
+            except Exception:
+                log.exception("节点测速失败")
 
     async def stop(self) -> None:
         for t in self._tasks:
@@ -242,16 +239,24 @@ class QuoteCollector:
         self._tasks.clear()
 
     # ── 内部 ──
-    async def _worker(self, idx: int, shard: list[tuple[int, str]]) -> None:
+    async def _worker(self, idx: int, total: int) -> None:
         client = None
         fails = 0
-        await self._ready.wait()          # 等节点测速完成（不阻塞 HTTP 监听）
         while True:
+            # 每轮重新取池子：前端加/删自选立即生效，无需重启服务
+            pairs = self.watch.pairs()
+            mine = pairs[idx::total] if pairs else []
+            if not mine:
+                # 分片被清空时必须同时清掉快照里的旧数据，否则已删除的票会一直残留
+                self.snap.shards[idx] = []
+                await asyncio.sleep(1.0)
+                continue
             try:
                 if client is None:
+                    await self._ensure_hosts()
                     client = await asyncio.to_thread(self._make_client)
                     fails = 0
-                payload = await asyncio.to_thread(self._fetch, client, shard)
+                payload = await asyncio.to_thread(self._fetch, client, mine)
                 self.snap.ts = time.time()
                 self.snap.shards[idx] = payload
                 self.snap.errors = 0
@@ -380,13 +385,25 @@ def _candidate_hosts(settings: Settings) -> list[str]:
     return hosts
 
 
-def _shard(items: list, n: int) -> list[list]:
-    """把标的池均分给 n 个 worker（轮转分片，避免某只票集中在一个连接上）。"""
-    n = max(1, n)
-    buckets: list[list] = [[] for _ in range(n)]
-    for i, item in enumerate(items):
-        buckets[i % n].append(item)
-    return [b for b in buckets if b]
+class _StaticWatch:
+    """只读的静态池，用于没接 WatchList 的场景（测试、单机临时跑）。
+
+    分片用固定取模（pairs[idx::total]），保证 worker i 每轮拿到的还是第 i 片，
+    不会因为某片为空就整体错位。
+    """
+
+    def __init__(self, symbols) -> None:
+        pairs = []
+        for sym in symbols:
+            parsed = parse_symbol(sym)
+            if parsed:
+                pairs.append(parsed)
+            else:
+                log.warning("标的 %r 无法解析，跳过", sym)
+        self._pairs = pairs
+
+    def pairs(self) -> list[tuple[int, str]]:
+        return list(self._pairs)
 
 
 def _df_to_records(df) -> list[dict[str, Any]]:

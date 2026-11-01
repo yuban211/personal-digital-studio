@@ -243,10 +243,24 @@
       $('setWeather').checked = !!c.showWeather;
       $('setCity').value = c.city || '';
       $('setApi').value = c.apiBase || '';
+      $('setQuotes').checked = !!c.showQuotes;
+      $('setQuotesApi').value = c.quotesApi || '';
+      $('setWatchlist').value = (c.watchlist || []).join(', ');
+    }
+
+    /** "600519.sh, 000858" → ['600519.SH', '000858']。中英文逗号、分号、空格都认。 */
+    function parseWatchlist(raw) {
+      return String(raw || '')
+        .split(/[,，;；\s]+/)
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
     }
 
     function bind() {
       const custom = $('setCustomUrl').value.trim();
+      const prevWatch = cfg().watchlist || [];
+      const nextWatch = parseWatchlist($('setWatchlist').value);
+
       window.StartPageConfig.set({
         engine: sel.value,
         customEngineUrl: custom,
@@ -255,11 +269,21 @@
         showWeather: $('setWeather').checked,
         city: $('setCity').value.trim(),
         apiBase: $('setApi').value.trim(),
+        showQuotes: $('setQuotes').checked,
+        quotesApi: $('setQuotesApi').value.trim(),
+        watchlist: nextWatch,
       });
+
+      // 自选池变了要通知服务端改抓取范围，否则新加的票永远没数据
+      if (window.StartPageQuotes
+          && JSON.stringify(prevWatch) !== JSON.stringify(nextWatch)) {
+        window.StartPageQuotes.refresh(prevWatch);
+      }
     }
 
     [sel, $('setCustomUrl'), $('setNewTab'), $('setWeather'),
-     $('setCity'), $('setApi')].forEach((el) => {
+     $('setCity'), $('setApi'), $('setQuotes'), $('setQuotesApi'),
+     $('setWatchlist')].forEach((el) => {
       el.addEventListener('change', bind);
     });
 

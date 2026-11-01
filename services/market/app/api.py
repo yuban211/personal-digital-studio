@@ -27,11 +27,13 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from .bus import TOPIC_QUOTES, create_bus
 from .collector import QuoteCollector, Snapshot
 from .lake import LakeError, list_datasets, normalize_symbol, query_history
 from .settings import Settings, load_settings
+from .watchlist import MAX_SYMBOLS, WatchList
 
 # easy_tdx 默认把配置写到 ~/.easy_tdx，容器内 / 非 root 用户常常写不了（PermissionError）。
 # 指到服务自己的数据目录，避免踩这个坑。
@@ -40,6 +42,13 @@ os.environ.setdefault(
     str(Path(os.getenv("MARKET_DATA_DIR", "./data")) / "easy_tdx"))
 
 log = logging.getLogger("market.api")
+
+
+class WatchPayload(BaseModel):
+    """自选池写入请求。symbols 接受 600519 / 600519.SH / SH600519 三种写法。"""
+
+    symbols: list[str] = Field(default_factory=list)
+    mode: str = "merge"
 
 
 def _check_token(request: Request, settings: Settings, query_token: str | None = None) -> None:
@@ -59,7 +68,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.bus = create_bus(s.bus_mode, s.redis_url, s.bus_queue_size)
-        app.state.collector = QuoteCollector(s, app.state.bus, snapshot)
+        app.state.watch = WatchList(s.data_dir / "watchlist.json", list(s.symbols))
+        app.state.collector = QuoteCollector(s, app.state.bus, snapshot, app.state.watch)
         await app.state.collector.start()
         try:
             yield
@@ -79,12 +89,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     @app.get("/healthz")
-    async def healthz():
+    async def healthz(request: Request):
+        watch = getattr(request.app.state, "watch", None)
         return {
             "ok": True,
             "bus": s.bus_mode,
             "collector": {
-                "symbols": len(s.symbols),
+                "symbols": len(watch) if watch is not None else len(s.symbols),
                 "workers": s.workers,
                 "last_ts": snapshot.ts,
                 "age": round(snapshot.age(), 2) if snapshot.ts else None,
@@ -94,16 +105,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "lake": {"root": str(s.lake_root), "available": s.lake_available},
         }
 
+    def _watch(request: Request) -> WatchList | None:
+        return getattr(request.app.state, "watch", None)
+
     @app.get("/api/status")
     async def status(request: Request, token: str | None = Query(None)):
         _check_token(request, s, token)
         datasets = list_datasets(s.lake_root) if s.lake_available else []
+        watch = _watch(request)
         return {
             "ok": True,
             "bus": s.bus_mode,
             "protocol": s.protocol,
             "poll_interval": s.poll_interval,
-            "symbols": list(s.symbols),
+            "symbols": watch.snapshot() if watch else list(s.symbols),
             "snapshot": {
                 "ts": snapshot.ts,
                 "age": round(snapshot.age(), 2) if snapshot.ts else None,
@@ -128,6 +143,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "error": f"行情快照已陈旧（{age:.1f}s > {s.stale_after:.0f}s），采集端可能掉线",
                 "code": "stale", "age": round(age, 2), "last_error": snapshot.last_error})
         return {"ok": True, "ts": snapshot.ts, "age": round(age, 2), "quotes": snapshot.quotes}
+
+    @app.get("/api/watch")
+    async def get_watch(request: Request):
+        watch = _watch(request)
+        return {"ok": True, "max": MAX_SYMBOLS,
+                "symbols": watch.snapshot() if watch else []}
+
+    @app.post("/api/watch")
+    async def set_watch(payload: WatchPayload, request: Request,
+                        token: str | None = Query(None)):
+        """改自选池。mode：
+        merge   - 并集（前端首次上报自己的池用，不会清掉别人加的）
+        replace - 全量替换（运维脚本用）
+        remove  - 删除指定标的（前端删票用）
+        """
+        _check_token(request, s, token)
+        watch = _watch(request)
+        if watch is None:
+            return JSONResponse(status_code=503, content={
+                "error": "自选池尚未初始化", "code": "not_ready"})
+        if payload.mode == "replace":
+            items = watch.replace(payload.symbols)
+        elif payload.mode == "remove":
+            items = watch.remove(payload.symbols)
+        else:
+            items = watch.merge(payload.symbols)
+        log.info("自选池更新（%s）：%d 只", payload.mode, len(items))
+        await request.app.state.bus.publish(TOPIC_QUOTES, {
+            "type": "watch", "symbols": items, "ts": time.time()})
+        return {"ok": True, "mode": payload.mode, "max": MAX_SYMBOLS, "symbols": items}
 
     @app.get("/api/datasets")
     async def datasets(request: Request, token: str | None = Query(None)):

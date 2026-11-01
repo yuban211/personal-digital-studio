@@ -197,6 +197,40 @@ body {
 }
 .todo-del:hover { color: var(--accent); }
 
+/* ── 自选行情 ──
+   涨红跌绿：中国市场惯例。用偏深的红绿，浅底上可读性够。 */
+.quotes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+}
+.quote {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 13px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: border-color 160ms ease, transform 160ms var(--ease);
+}
+.quote:hover { transform: translateY(-1px); border-color: rgba(44, 44, 44, 0.22); }
+.q-main { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.q-name {
+  font-size: 13.5px; font-weight: 500; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.q-code { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+.q-nums { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.q-price { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.q-pct { font-size: 12px; font-variant-numeric: tabular-nums; }
+.q-nums.up { color: #cf3226; }
+.q-nums.down { color: #0f7d43; }
+.q-nums.flat { color: var(--dim); }
+.quotes-hint { font-size: 13px; color: var(--dim); grid-column: 1 / -1; }
+.quotes-status { font-size: 12px; color: var(--dim); margin-top: 8px; }
+.quotes-status[hidden] { display: none; }
+
 /* ── 设置抽屉 ── */
 .drawer {
   position: fixed;
@@ -225,13 +259,19 @@ body {
 .drawer-head h2 { font-size: 17px; font-weight: 600; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field > span { font-size: 12px; color: var(--dim); }
-.field input[type="text"], .field select {
+.field input[type="text"], .field select, .field textarea {
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--card);
   font: inherit;
   font-size: 14px;
+}
+.field textarea {
+  resize: vertical;
+  min-height: 62px;
+  line-height: 1.5;
+  font-family: inherit;
 }
 .field.check {
   flex-direction: row;

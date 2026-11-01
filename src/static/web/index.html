@@ -32,6 +32,13 @@
       <div class="bookmarks" id="bookmarks"></div>
     </section>
 
+    <!-- 自选行情（数据来自自建行情服务，同源反代 /market） -->
+    <section class="section" id="quotesSection">
+      <h2 class="section-title">自选行情</h2>
+      <div class="quotes" id="quotes"></div>
+      <div class="quotes-status" id="quotesStatus" hidden></div>
+    </section>
+
     <!-- 待办 -->
     <section class="section" id="todoSection">
       <h2 class="section-title">待办</h2>
@@ -76,6 +83,22 @@
         <input id="setCity" type="text" placeholder="例如 Shanghai">
       </label>
 
+      <label class="field check">
+        <input id="setQuotes" type="checkbox">
+        <span>显示自选行情</span>
+      </label>
+
+      <label class="field">
+        <span>自选股（逗号或换行分隔，如 600519.SH、000858）</span>
+        <textarea id="setWatchlist" rows="3"
+                  placeholder="600519.SH, 000858.SZ, 300750.SZ"></textarea>
+      </label>
+
+      <label class="field">
+        <span>行情接口地址（留空走同源 market）</span>
+        <input id="setQuotesApi" type="text" placeholder="market">
+      </label>
+
       <label class="field">
         <span>服务器 API（可选，留空则不同步）</span>
         <input id="setApi" type="text" placeholder="https://...">
@@ -94,6 +117,7 @@
        站点挂在根或 /studio/ 前缀下都能命中） -->
   <script src="web/config.js"></script>
   <script src="web/search.js"></script>
+  <script src="web/quotes.js"></script>
   <script src="web/app.js"></script>
 </body>
 </html>

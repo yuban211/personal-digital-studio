@@ -29,8 +29,12 @@
     showClock: true,
     showBookmarks: true,
     showTodos: true,
+    showQuotes: true,          // 自选行情卡片
     city: '',                  // 天气城市，空则自动
     apiBase: '',               // 可选的服务器 API 地址
+    quotesApi: '',             // 行情接口，空则走同源 market（Caddy 反代）
+    // 自选股。默认给三个常见标的，用户可在设置里随意改
+    watchlist: ['600519.SH', '000858.SZ', '300750.SZ'],
     greeting: true,
   };
 
