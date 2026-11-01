@@ -11,6 +11,11 @@
 
   const $ = (id) => document.getElementById(id);
   const cfg = () => window.StartPageConfig.get();
+  let weatherAbort = null;
+  let weatherRequest = 0;
+  let weatherTimer = 0;
+  let drawerTimer = 0;
+  let focusBeforeDrawer = null;
 
   /* ─────────────── 时间与问候 ─────────────── */
 
@@ -19,6 +24,10 @@
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     $('clock').textContent = hh + ':' + mm;
+    const date = new Intl.DateTimeFormat('zh-CN', {
+      month: 'long', day: 'numeric', weekday: 'long',
+    }).format(now);
+    $('dateLabel').textContent = date;
 
     const h = now.getHours();
     const greet = h < 6 ? '夜深了' : h < 11 ? '早上好'
@@ -84,10 +93,21 @@
   function loadBM() {
     try {
       const s = localStorage.getItem(BM_KEY);
-      return s ? JSON.parse(s) : DEFAULT_BM.slice();
+      if (!s) return DEFAULT_BM.slice();
+      const parsed = JSON.parse(s);
+      if (!Array.isArray(parsed)) return DEFAULT_BM.slice();
+      return parsed.filter((b) => b && typeof b.title === 'string'
+        && typeof b.url === 'string' && b.title.trim() && safeBookmarkURL(b.url)).slice(0, 48);
     } catch (e) {
       return DEFAULT_BM.slice();
     }
+  }
+
+  function safeBookmarkURL(raw) {
+    try {
+      const parsed = new URL(String(raw), window.location.href);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (e) { return false; }
   }
 
   function saveBM(list) {
@@ -103,6 +123,7 @@
     list.forEach((b, i) => {
       const a = document.createElement('a');
       a.className = 'bm';
+      a.style.setProperty('--item-index', Math.min(i, 8));
       a.href = b.url;
       a.innerHTML = '<span class="bm-icon">' + esc(b.title.slice(0, 1)) + '</span>'
         + '<span class="bm-title">' + esc(b.title) + '</span>';
@@ -127,8 +148,10 @@
       const url = prompt('网址：');
       if (!url) return;
       const title = prompt('名称：', url.replace(/^https?:\/\//, '').slice(0, 12)) || url;
+      const normalizedUrl = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+      if (!safeBookmarkURL(normalizedUrl)) { alert('请输入有效的网址'); return; }
       const l = loadBM();
-      l.push({ title, url: /^https?:\/\//.test(url) ? url : 'https://' + url });
+      l.push({ title: title.trim().slice(0, 48), url: normalizedUrl });
       saveBM(l);
       renderBM();
     });
@@ -142,7 +165,10 @@
   function loadTodos() {
     try {
       const s = localStorage.getItem(TODO_KEY);
-      return s ? JSON.parse(s) : [];
+      if (!s) return [];
+      const parsed = JSON.parse(s);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((t) => t && typeof t.text === 'string').slice(-300);
     } catch (e) { return []; }
   }
 
@@ -157,6 +183,7 @@
     list.forEach((t, i) => {
       const li = document.createElement('li');
       li.className = 'todo' + (t.done ? ' done' : '');
+      li.style.setProperty('--item-index', Math.min(i, 12));
       li.innerHTML =
         '<input type="checkbox"' + (t.done ? ' checked' : '') + '>'
         + '<span class="todo-text">' + esc(t.text) + '</span>'
@@ -195,31 +222,54 @@
 
   async function loadWeather() {
     const el = $('weather');
+    const requestId = ++weatherRequest;
+    if (weatherAbort) weatherAbort.abort();
     if (!cfg().showWeather) { el.hidden = true; return; }
+
+    const controller = new AbortController();
+    weatherAbort = controller;
+    const timeout = setTimeout(() => controller.abort(), 7000);
 
     try {
       // Open-Meteo：免密钥、无需注册
       const city = cfg().city || 'Shanghai';
-      const geo = await fetch(
+      const geoResponse = await fetch(
         'https://geocoding-api.open-meteo.com/v1/search?name='
-        + encodeURIComponent(city) + '&count=1'
-      ).then((r) => r.json());
+        + encodeURIComponent(city) + '&count=1',
+        { signal: controller.signal }
+      );
+      if (!geoResponse.ok) throw new Error('geocoding failed');
+      const geo = await geoResponse.json();
 
+      if (requestId !== weatherRequest) return;
       if (!geo.results || !geo.results.length) { el.hidden = true; return; }
       const { latitude, longitude, name } = geo.results[0];
 
-      const w = await fetch(
+      const weatherResponse = await fetch(
         'https://api.open-meteo.com/v1/forecast?latitude=' + latitude
-        + '&longitude=' + longitude + '&current=temperature_2m,weather_code'
-      ).then((r) => r.json());
+        + '&longitude=' + longitude + '&current=temperature_2m,weather_code',
+        { signal: controller.signal }
+      );
+      if (!weatherResponse.ok) throw new Error('weather failed');
+      const w = await weatherResponse.json();
 
       const t = w.current && w.current.temperature_2m;
+      if (requestId !== weatherRequest) return;
+      if (!Number.isFinite(t)) { el.hidden = true; return; }
       el.textContent = name + ' ' + Math.round(t) + '°';
       el.hidden = false;
     } catch (e) {
       // 断网或失败：静默隐藏，绝不弹错
-      el.hidden = true;
+      if (requestId === weatherRequest) el.hidden = true;
+    } finally {
+      clearTimeout(timeout);
+      if (weatherAbort === controller) weatherAbort = null;
     }
+  }
+
+  function scheduleWeather() {
+    clearTimeout(weatherTimer);
+    weatherTimer = setTimeout(loadWeather, 220);
   }
 
   /* ─────────────── 设置 ─────────────── */
@@ -256,7 +306,7 @@
         .filter(Boolean);
     }
 
-    function bind() {
+    function bind(event) {
       const custom = $('setCustomUrl').value.trim();
       const prevWatch = cfg().watchlist || [];
       const nextWatch = parseWatchlist($('setWatchlist').value);
@@ -279,6 +329,9 @@
           && JSON.stringify(prevWatch) !== JSON.stringify(nextWatch)) {
         window.StartPageQuotes.refresh(prevWatch);
       }
+      if (event && (event.target === $('setWeather') || event.target === $('setCity'))) {
+        scheduleWeather();
+      }
     }
 
     [sel, $('setCustomUrl'), $('setNewTab'), $('setWeather'),
@@ -289,14 +342,55 @@
 
     $('btnSettings').addEventListener('click', () => {
       fill();
+      focusBeforeDrawer = document.activeElement;
+      clearTimeout(drawerTimer);
       $('drawer').hidden = false;
+      $('btnSettings').setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(() => {
+        $('drawer').classList.add('is-open');
+        sel.focus();
+      });
     });
-    $('btnClose').addEventListener('click', () => { $('drawer').hidden = true; });
+    function closeDrawer() {
+      if ($('drawer').hidden) return;
+      clearTimeout(drawerTimer);
+      $('drawer').classList.remove('is-open');
+      $('btnSettings').setAttribute('aria-expanded', 'false');
+      const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 190;
+      drawerTimer = setTimeout(() => {
+        $('drawer').hidden = true;
+        if (focusBeforeDrawer && focusBeforeDrawer.focus) focusBeforeDrawer.focus();
+      }, delay);
+    }
+    $('btnClose').addEventListener('click', closeDrawer);
+    $('drawer').addEventListener('click', (event) => {
+      if (event.target === $('drawer')) closeDrawer();
+    });
+    document.addEventListener('keydown', (event) => {
+      if ($('drawer').hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDrawer();
+      } else if (event.key === 'Tab') {
+        const focusable = Array.from($('drawer').querySelectorAll(
+          'button:not([disabled]), input:not([disabled]):not([type="file"]), select:not([disabled]), textarea:not([disabled])'
+        )).filter((el) => el.offsetParent !== null);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first.focus();
+        }
+      }
+    });
 
     $('btnReset').addEventListener('click', () => {
       if (!confirm('恢复默认设置？快捷入口和待办不受影响。')) return;
       window.StartPageConfig.reset();
       fill();
+      scheduleWeather();
     });
 
     $('btnExport').addEventListener('click', () => {
@@ -318,6 +412,7 @@
           const obj = JSON.parse(fr.result);
           window.StartPageConfig.set(obj);
           fill();
+          scheduleWeather();
           alert('已导入');
         } catch (err) {
           alert('不是有效的配置文件');
@@ -347,6 +442,7 @@
     initTodo();
     initSettings();
     loadWeather();
+    requestAnimationFrame(() => document.body.classList.add('is-ready'));
   }
 
   if (document.readyState === 'loading') {

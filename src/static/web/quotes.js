@@ -153,9 +153,8 @@
       if (q && q.code) byKey[String(q.code)] = q;
     });
 
-    box.innerHTML = '';
-
     if (!list.length) {
+      box.innerHTML = '';
       const empty = document.createElement('div');
       empty.className = 'quotes-hint';
       empty.textContent = '还没有自选股。在设置里填入代码，例如 600519.SH、000858。';
@@ -163,12 +162,9 @@
       return;
     }
 
-    list.forEach((sym) => {
+    const rendered = list.map((sym) => {
       const code = String(sym).split('.')[0];
       const q = byKey[code];
-
-      const row = document.createElement('div');
-      row.className = 'quote';
 
       const name = q && q.name ? String(q.name).replace(/\s+/g, '') : code;
       const close = q ? num(q.close) : null;
@@ -178,7 +174,7 @@
       const pct = (delta !== null && pre) ? (delta / pre * 100) : null;
       const cls = trendClass(delta);
 
-      row.innerHTML =
+      const html =
         '<div class="q-main">'
         + '<span class="q-name">' + esc(name) + '</span>'
         + '<span class="q-code">' + esc(code) + '</span>'
@@ -188,7 +184,24 @@
         + '<span class="q-pct">' + (pct === null ? '' : fmtPct(pct)) + '</span>'
         + '</div>';
 
-      box.appendChild(row);
+      return { sym, html };
+    });
+
+    // 轮询经常拿到完全相同的快照。保留已有卡片节点，避免每 3 秒拆建整棵 DOM；
+    // 内容未变时连卡片内部也不重写，减少闪动并保留鼠标/辅助技术的节点状态。
+    const oldRows = Array.from(box.children).filter((row) => row.className === 'quote');
+    const canReuse = oldRows.length === rendered.length
+      && oldRows.every((row, index) => row._quoteSymbol === rendered[index].sym);
+    if (!canReuse) box.innerHTML = '';
+    rendered.forEach((item, index) => {
+      const row = canReuse ? oldRows[index] : document.createElement('div');
+      if (!canReuse) row.className = 'quote';
+      if (row._quoteHtml !== item.html) {
+        row.innerHTML = item.html;
+        row._quoteHtml = item.html;
+      }
+      row._quoteSymbol = item.sym;
+      if (!canReuse) box.appendChild(row);
     });
 
     // 状态行：只在异常或有时效信息时出现，正常时不占视觉

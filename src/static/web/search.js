@@ -28,7 +28,8 @@
 
     // 自定义引擎优先（用 {} 占位）
     if (cfg.useCustomEngine && cfg.customEngineUrl) {
-      return cfg.customEngineUrl.replace('{}', encodeURIComponent(q));
+      const custom = cfg.customEngineUrl.replace('{}', encodeURIComponent(q));
+      if (isWebUrl(custom)) return custom;
     }
     const engines = window.StartPageConfig.ENGINES;
     const e = engines[cfg.engine] || engines.bing;
@@ -41,12 +42,20 @@
   function looksLikeUrl(text) {
     const t = String(text || '').trim();
     if (!t) return false;
-    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return true;   // 有协议
+    if (/^https?:\/\//i.test(t)) return isWebUrl(t);
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return false;
     if (/^localhost(:\d+)?(\/.*)?$/i.test(t)) return true;
     // 裸域名：至少两段，末段纯字母
     const m = t.match(/^[\w-]+(\.[\w-]+)+(:\d+)?([\/?#].*)?$/);
     if (!m) return false;
     return /\.([a-z]{2,})(?=$|[:/?#])/i.test(t);
+  }
+
+  function isWebUrl(value) {
+    try {
+      const url = new URL(String(value));
+      return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname;
+    } catch (e) { return false; }
   }
 
   /**
@@ -59,17 +68,77 @@
     if (!t.startsWith('=')) return null;
     const expr = t.slice(1).trim();
     if (!expr) return null;
-    // 只允许数字、运算符、括号、空格、小数点
+    // 只允许数字、运算符、括号、空格、小数点；长度上限避免无意义的大输入。
     if (!/^[0-9+\-*/(). %\s]+$/.test(expr)) return null;
+    if (expr.length > 160) return null;
 
     try {
-      // 用 Function 而非 eval：仍在同一作用域外，但限制在表达式内
-      const fn = new Function('return (' + expr + ')');
-      const r = fn();
-      if (typeof r === 'number' && isFinite(r)) {
-        return String(r);
+      // 递归下降解析：乘除优先于加减，支持一元正负号与括号，不执行动态代码。
+      const tokens = [];
+      for (let i = 0; i < expr.length;) {
+        if (/\s/.test(expr[i])) { i += 1; continue; }
+        const number = expr.slice(i).match(/^(?:\d+(?:\.\d*)?|\.\d+)/);
+        if (number) {
+          const value = Number(number[0]);
+          if (!Number.isFinite(value)) return null;
+          tokens.push(value);
+          i += number[0].length;
+          continue;
+        }
+        if ('()+-*/%'.includes(expr[i])) {
+          tokens.push(expr[i]);
+          i += 1;
+          continue;
+        }
+        return null;
       }
-      return null;
+
+      let cursor = 0;
+      function primary() {
+        const token = tokens[cursor++];
+        if (token === '(') {
+          const value = addSub();
+          if (tokens[cursor++] !== ')') throw new Error('括号不匹配');
+          return value;
+        }
+        if (typeof token === 'number') return token;
+        throw new Error('缺少数字');
+      }
+      function unary() {
+        const token = tokens[cursor];
+        if (token === '+' || token === '-') {
+          cursor += 1;
+          const value = unary();
+          return token === '-' ? -value : value;
+        }
+        return primary();
+      }
+      function multiplyDivide() {
+        let value = unary();
+        while (tokens[cursor] === '*' || tokens[cursor] === '/'
+               || tokens[cursor] === '%') {
+          const operator = tokens[cursor++];
+          const right = unary();
+          if (operator === '*') value *= right;
+          else if (operator === '/') value /= right;
+          else value %= right;
+        }
+        return value;
+      }
+      function addSub() {
+        let value = multiplyDivide();
+        while (tokens[cursor] === '+' || tokens[cursor] === '-') {
+          const operator = tokens[cursor++];
+          const right = multiplyDivide();
+          value = operator === '+' ? value + right : value - right;
+        }
+        return value;
+      }
+
+      const result = addSub();
+      if (cursor !== tokens.length || !Number.isFinite(result)) return null;
+      const rounded = Number(result.toPrecision(15));
+      return String(Object.is(rounded, -0) ? 0 : rounded);
     } catch (e) {
       return null;
     }
@@ -88,7 +157,7 @@
       return { type: 'calc', value: calc };
     }
     if (looksLikeUrl(raw)) {
-      const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : 'https://' + raw;
+      const url = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
       return { type: 'url', value: url };
     }
     return { type: 'search', value: buildSearchUrl(raw, cfg) };

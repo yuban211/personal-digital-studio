@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>起始页</title>
 <link rel="stylesheet" href="web/style.css">
 </head>
@@ -10,14 +11,17 @@
 
   <!-- 顶栏：时间 + 天气 -->
   <header class="topbar">
-    <div class="greeting" id="greeting">你好</div>
-    <div class="clock" id="clock">--:--</div>
+    <div class="topbar-copy">
+      <div class="greeting" id="greeting">你好</div>
+      <div class="clock-line"><span class="clock" id="clock">--:--</span><span class="date-label" id="dateLabel"></span></div>
+    </div>
     <div class="weather" id="weather" hidden></div>
-    <button class="icon-btn" id="btnSettings" aria-label="设置" title="设置">⚙</button>
+    <button class="icon-btn" id="btnSettings" aria-label="设置" title="设置" aria-expanded="false">⚙</button>
   </header>
 
   <!-- 搜索（核心） -->
   <main class="stage">
+    <div class="eyebrow"><span class="eyebrow-dot"></span> 今日起点 <span class="eyebrow-en">YOUR SPACE, YOUR PACE</span></div>
     <form class="search" id="searchForm" autocomplete="off">
       <input class="search-input" id="searchInput" type="text"
              placeholder="搜索，或输入网址" aria-label="搜索框"
@@ -52,10 +56,10 @@
 
   <!-- 设置面板 -->
   <div class="drawer" id="drawer" hidden>
-    <div class="drawer-inner">
+    <div class="drawer-inner" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" tabindex="-1">
       <div class="drawer-head">
-        <h2>设置</h2>
-        <button class="icon-btn" id="btnClose" aria-label="关闭">✕</button>
+        <h2 id="settingsTitle">设置</h2>
+        <button class="icon-btn" id="btnClose" type="button" aria-label="关闭设置">✕</button>
       </div>
 
       <label class="field">
