@@ -7,3 +7,6 @@ backups/
 dist/
 .env
 .DS_Store
+services/market/data/
+services/market/config.env
+services/market/venv/

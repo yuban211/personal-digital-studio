@@ -1,0 +1,28 @@
+[Unit]
+Description=Market Data Service (FastAPI + easy_tdx collector)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=market
+Group=market
+WorkingDirectory=/opt/market-service
+EnvironmentFile=/opt/market-service/config.env
+Environment=MARKET_DATA_DIR=/var/lib/market
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/market-service/venv/bin/python -m uvicorn app.api:app --host 127.0.0.1 --port 9110
+Restart=always
+RestartSec=5
+# 采集是 IO 密集，限制 CPU 免得跟同机其它服务抢
+CPUWeight=50
+MemoryMax=1G
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/market /opt/market-service/data
+
+[Install]
+WantedBy=multi-user.target

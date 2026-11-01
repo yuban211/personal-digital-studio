@@ -1,0 +1,19 @@
+# 行情数据服务 —— 运行时依赖
+#
+# 注意：easy-tdx 没有发布到 PyPI（pypi.org/pypi/easy-tdx/json 返回 404），
+# 只能从 GitHub 源码装：
+#   pip install "easy-tdx @ git+https://github.com/Justin-ZS/easy_tdx.git"
+# 若目标机访问 GitHub 受限，用本地 zip（见 scripts/install-easy-tdx.sh）。
+
+fastapi>=0.110
+uvicorn[standard]>=0.29
+duckdb>=1.0
+pandas>=2.0
+tzdata>=2024.1
+click>=8.0
+
+# 可选：Redis 总线（MARKET_BUS=redis 时才需要）
+redis>=5.0
+
+# 可选：CNEquity（数据湖本身由它的 cne CLI 建，这里只是让 Python 侧也能直连）
+# cnequity>=0.21
